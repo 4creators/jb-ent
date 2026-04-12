@@ -4,6 +4,9 @@
 1. **MANDATORY SYNCHRONIZATION**: The absolute first action in any new session MUST be to synchronize the \main\ branch with the \origin\ remote (e.g., \git pull --rebase origin main\).
 2. **CONTEXT GATHERING**: After reading this \gemini.md\ file, you MUST read \README.md\ before starting any actual work or modifying files.
 3. **DEVELOPMENT WORKFLOW**: Always write code, its accompanying tests, and update the relevant documentation BEFORE committing any code changes.
+4. **INDEX VERIFICATION**: Verify that the codebase is up to date and indexed with the codebase-memory-mcp server.
+5. **MCP FIRST APPROACH**: When searching for information on code, FIRST use the MCP server. Try different queries, and only if they fail should you read the file directly. Before reading a file, you must first find the code structure using information from the MCP server.
+6. **MCP EFFICIENCY**: The codebase-memory-mcp server is very fast and to a large extent accurate. Its use saves user tokens and speeds up work making it much more precise and successful.
 
 ---
 
@@ -36,3 +39,4 @@ We need to modify \cbm_project_name_from_path\ (or the upstream pipeline logic) 
 2. Ensure no memory leaks are introduced (valgrind/asan).
 3. Write comprehensive C unit tests in the \	ests/\ directory to prove that WSL, Windows, and Linux paths resolve to the exact same Project ID when the unification logic is triggered.
 4. Compile the server via \Makefile.cbm\ and restart the Gemini CLI to apply the fix.
+
