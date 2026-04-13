@@ -17,7 +17,7 @@ add_definitions(
 )
 
 if(MSVC)
-    add_compile_options(/W3 /wd4005 /wd4996 /wd4018 /wd4244 /wd4267 /wd4146 /wd4090 /experimental:c11atomics)
+    add_compile_options(/utf-8 /W3 /wd4005 /wd4996 /wd4018 /wd4244 /wd4267 /wd4146 /wd4090 /experimental:c11atomics)
 endif()
 
 # Find vcpkg dependencies
