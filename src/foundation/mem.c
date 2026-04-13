@@ -174,3 +174,87 @@ size_t cbm_mem_worker_budget(int num_workers) {
 void cbm_mem_collect(void) {
     mi_collect(true);
 }
+
+/* ── Hardened Memory Auditing & OOM Aborts ────────────────────────── */
+
+#ifdef CBM_HARDEN_MEMORY
+
+#include "allocator.h"
+
+static _Atomic int64_t g_audit_bytes = 0;
+
+static void trigger_oom_abort(const char *op, size_t size, const char *file, int line) {
+    /* Statically allocated message to guarantee we can print without any more RAM */
+    char msg[CBM_SZ_256];
+    snprintf(msg, sizeof(msg), "FATAL: Out of Memory! Failed to %s %zu bytes at %s:%d\n", op, size, file, line);
+    fputs(msg, stderr);
+    fflush(stderr);
+    exit(EXIT_FAILURE);
+}
+
+void* cbm_malloc_safe(size_t size, const char *file, int line) {
+    void *p = malloc(size);
+    if (!p) trigger_oom_abort("malloc", size, file, line);
+    atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
+    return p;
+}
+
+void* cbm_calloc_safe(size_t count, size_t size, const char *file, int line) {
+    void *p = calloc(count, size);
+    if (!p && (count * size) > 0) trigger_oom_abort("calloc", count * size, file, line);
+    if (p) atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
+    return p;
+}
+
+void* cbm_realloc_safe(void* ptr, size_t size, const char *file, int line) {
+    size_t old_size = ptr ? mi_usable_size(ptr) : 0;
+    void *p = realloc(ptr, size);
+    if (!p && size > 0) trigger_oom_abort("realloc", size, file, line);
+    if (p) {
+        atomic_fetch_sub(&g_audit_bytes, old_size);
+        atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
+    }
+    return p;
+}
+
+void cbm_free_safe(void* ptr, const char *file, int line) {
+    (void)file; (void)line;
+    if (ptr) {
+        atomic_fetch_sub(&g_audit_bytes, mi_usable_size(ptr));
+        free(ptr);
+    }
+}
+
+char* cbm_strdup_safe(const char* s, const char *file, int line) {
+    if (!s) return NULL;
+    char *p = _strdup(s); /* Or standard strdup depending on platform, _strdup on MSVC */
+#ifndef _WIN32
+    if (!p) p = strdup(s);
+#endif
+    if (!p) trigger_oom_abort("strdup", strlen(s) + 1, file, line);
+    atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
+    return p;
+}
+
+char* cbm_strndup_safe(const char* s, size_t n, const char *file, int line) {
+    if (!s) return NULL;
+    size_t len = 0;
+    while (len < n && s[len]) len++;
+    char *p = malloc(len + 1);
+    if (!p) trigger_oom_abort("strndup", len + 1, file, line);
+    memcpy(p, s, len);
+    p[len] = '\0';
+    atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
+    return p;
+}
+
+void cbm_mem_print_audit(void) {
+    int64_t leaked = atomic_load(&g_audit_bytes);
+    if (leaked != 0) {
+        fprintf(stderr, "MEMORY AUDIT FAILED: %lld bytes leaked!\n", (long long)leaked);
+    } else {
+        fprintf(stderr, "MEMORY AUDIT OK: 0 bytes leaked.\n");
+    }
+}
+
+#endif /* CBM_HARDEN_MEMORY */

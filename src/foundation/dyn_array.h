@@ -20,6 +20,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* Declare a dynamic array type for a given element type. */
 #define CBM_DYN_ARRAY(T) \
@@ -34,7 +35,7 @@
     do {                                                                                \
         if ((da)->count >= (da)->cap) {                                                 \
             int _new_cap = (da)->cap ? (da)->cap * 2 : 8;                               \
-            void *_new = realloc((da)->items, (size_t)_new_cap * sizeof(*(da)->items)); \
+            void *_new = CBM_REALLOC((da)->items, (size_t)_new_cap * sizeof(*(da)->items)); \
             if (!_new)                                                                  \
                 break;                                                                  \
             (da)->items = _new;                                                         \
@@ -47,7 +48,7 @@
 #define cbm_da_push_ptr(da)                                                                        \
     (((da)->count >= (da)->cap                                                                     \
           ? ((void)((da)->cap = (da)->cap ? (da)->cap * 2 : 8),                                    \
-             (void)((da)->items = realloc((da)->items, (size_t)(da)->cap * sizeof(*(da)->items)))) \
+             (void)((da)->items = CBM_REALLOC((da)->items, (size_t)(da)->cap * sizeof(*(da)->items)))) \
           : (void)0),                                                                              \
      &(da)->items[(da)->count++])
 
@@ -63,7 +64,7 @@
 /* Free all memory. */
 #define cbm_da_free(da)     \
     do {                    \
-        free((da)->items);  \
+        CBM_FREE((da)->items);  \
         (da)->items = NULL; \
         (da)->count = 0;    \
         (da)->cap = 0;      \
@@ -73,7 +74,7 @@
 #define cbm_da_reserve(da, n)                                                      \
     do {                                                                           \
         if ((n) > (da)->cap) {                                                     \
-            void *_new = realloc((da)->items, (size_t)(n) * sizeof(*(da)->items)); \
+            void *_new = CBM_REALLOC((da)->items, (size_t)(n) * sizeof(*(da)->items)); \
             if (_new) {                                                            \
                 (da)->items = _new;                                                \
                 (da)->cap = (n);                                                   \

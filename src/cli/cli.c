@@ -676,7 +676,7 @@ static yyjson_doc *read_json_file(const char *path) {
         return NULL;
     }
 
-    char *buf = malloc((size_t)size + CLI_SKIP_ONE);
+    char *buf = CBM_MALLOC((size_t)size + CLI_SKIP_ONE);
     if (!buf) {
         (void)fclose(f);
         return NULL;
@@ -692,7 +692,7 @@ static yyjson_doc *read_json_file(const char *path) {
     /* Allow JSONC (comments + trailing commas) — Zed settings.json uses this format */
     yyjson_read_flag flags = YYJSON_READ_ALLOW_COMMENTS | YYJSON_READ_ALLOW_TRAILING_COMMAS;
     yyjson_doc *doc = yyjson_read(buf, nread, flags);
-    free(buf);
+    CBM_FREE(buf);
     return doc;
 }
 
@@ -716,7 +716,7 @@ static int write_json_file(const char *path, yyjson_mut_doc *doc) {
 
     FILE *f = fopen(path, "w");
     if (!f) {
-        free(json);
+        CBM_FREE(json);
         return CLI_ERR;
     }
 
@@ -724,7 +724,7 @@ static int write_json_file(const char *path, yyjson_mut_doc *doc) {
     /* Add trailing newline */
     (void)fputc('\n', f);
     (void)fclose(f);
-    free(json);
+    CBM_FREE(json);
 
     return written == len ? 0 : CLI_ERR;
 }
@@ -1083,7 +1083,7 @@ static char *read_file_str(const char *path, size_t *out_len) {
         return NULL;
     }
 
-    char *buf = malloc((size_t)size + CLI_SKIP_ONE);
+    char *buf = CBM_MALLOC((size_t)size + CLI_SKIP_ONE);
     if (!buf) {
         (void)fclose(f);
         return NULL;
@@ -1132,9 +1132,9 @@ int cbm_upsert_instructions(const char *path, const char *content) {
     /* Build the marker-wrapped section */
     size_t section_len = strlen(CMM_MARKER_START) + CLI_SKIP_ONE + strlen(content) +
                          strlen(CMM_MARKER_END) + CLI_SKIP_ONE;
-    char *section = malloc(section_len + CLI_SKIP_ONE);
+    char *section = CBM_MALLOC(section_len + CLI_SKIP_ONE);
     if (!section) {
-        free(existing);
+        CBM_FREE(existing);
         return CLI_ERR;
     }
     snprintf(section, section_len + SKIP_ONE, "%s\n%s%s\n", CMM_MARKER_START, content,
@@ -1143,7 +1143,7 @@ int cbm_upsert_instructions(const char *path, const char *content) {
     if (!existing) {
         /* File doesn't exist — create with just the section */
         int rc = write_file_str(path, section);
-        free(section);
+        CBM_FREE(section);
         return rc;
     }
 
@@ -1163,10 +1163,10 @@ int cbm_upsert_instructions(const char *path, const char *content) {
         size_t prefix_len = (size_t)(start - existing);
         size_t suffix_len = strlen(end);
         size_t new_len = prefix_len + strlen(section) + suffix_len;
-        result = malloc(new_len + CLI_SKIP_ONE);
+        result = CBM_MALLOC(new_len + CLI_SKIP_ONE);
         if (!result) {
-            free(existing);
-            free(section);
+            CBM_FREE(existing);
+            CBM_FREE(section);
             return CLI_ERR;
         }
         memcpy(result, existing, prefix_len);
@@ -1177,14 +1177,14 @@ int cbm_upsert_instructions(const char *path, const char *content) {
         /* Append section */
         size_t new_len = existing_len + CLI_SKIP_ONE + strlen(section);
         if (new_len > (size_t)CLI_MB_10 * CLI_MB_FACTOR) { /* 10 MB safety cap */
-            free(existing);
-            free(section);
+            CBM_FREE(existing);
+            CBM_FREE(section);
             return CLI_ERR;
         }
-        result = malloc(new_len + CLI_SKIP_ONE);
+        result = CBM_MALLOC(new_len + CLI_SKIP_ONE);
         if (!result) {
-            free(existing);
-            free(section);
+            CBM_FREE(existing);
+            CBM_FREE(section);
             return CLI_ERR;
         }
         memcpy(result, existing, existing_len);
@@ -1194,9 +1194,9 @@ int cbm_upsert_instructions(const char *path, const char *content) {
     }
 
     int rc = write_file_str(path, result);
-    free(existing);
-    free(section);
-    free(result);
+    CBM_FREE(existing);
+    CBM_FREE(section);
+    CBM_FREE(result);
     return rc;
 }
 
@@ -1215,7 +1215,7 @@ int cbm_remove_instructions(const char *path) {
     char *end = start ? strstr(start, CMM_MARKER_END) : NULL;
 
     if (!start || !end) {
-        free(content);
+        CBM_FREE(content);
         return CLI_TRUE; /* not found */
     }
 
@@ -1232,9 +1232,9 @@ int cbm_remove_instructions(const char *path) {
     size_t prefix_len = (size_t)(start - content);
     size_t suffix_len = strlen(end);
     size_t new_len = prefix_len + suffix_len;
-    char *result = malloc(new_len + CLI_SKIP_ONE);
+    char *result = CBM_MALLOC(new_len + CLI_SKIP_ONE);
     if (!result) {
-        free(content);
+        CBM_FREE(content);
         return CLI_ERR;
     }
     memcpy(result, content, prefix_len);
@@ -1242,8 +1242,8 @@ int cbm_remove_instructions(const char *path) {
     result[new_len] = '\0';
 
     int rc = write_file_str(path, result);
-    free(content);
-    free(result);
+    CBM_FREE(content);
+    CBM_FREE(result);
     return rc;
 }
 
@@ -1283,9 +1283,9 @@ int cbm_upsert_codex_mcp(const char *binary_path, const char *config_path) {
         const char *suffix = next_section ? next_section : "";
         size_t suffix_len = strlen(suffix);
         size_t new_len = prefix_len + strlen(section) + CLI_SKIP_ONE + suffix_len;
-        char *result = malloc(new_len + CLI_SKIP_ONE);
+        char *result = CBM_MALLOC(new_len + CLI_SKIP_ONE);
         if (!result) {
-            free(content);
+            CBM_FREE(content);
             return CLI_ERR;
         }
         memcpy(result, content, prefix_len);
@@ -1295,16 +1295,16 @@ int cbm_upsert_codex_mcp(const char *binary_path, const char *config_path) {
         result[new_len] = '\0';
 
         int rc = write_file_str(config_path, result);
-        free(content);
-        free(result);
+        CBM_FREE(content);
+        CBM_FREE(result);
         return rc;
     }
 
     /* Append our section */
     size_t new_len = len + CLI_SKIP_ONE + strlen(section);
-    char *result = malloc(new_len + CLI_SKIP_ONE);
+    char *result = CBM_MALLOC(new_len + CLI_SKIP_ONE);
     if (!result) {
-        free(content);
+        CBM_FREE(content);
         return CLI_ERR;
     }
     memcpy(result, content, len);
@@ -1313,8 +1313,8 @@ int cbm_upsert_codex_mcp(const char *binary_path, const char *config_path) {
     result[new_len] = '\0';
 
     int rc = write_file_str(config_path, result);
-    free(content);
-    free(result);
+    CBM_FREE(content);
+    CBM_FREE(result);
     return rc;
 }
 
@@ -1331,7 +1331,7 @@ int cbm_remove_codex_mcp(const char *config_path) {
 
     char *existing = strstr(content, CODEX_CMM_SECTION);
     if (!existing) {
-        free(content);
+        CBM_FREE(content);
         return CLI_TRUE;
     }
 
@@ -1350,9 +1350,9 @@ int cbm_remove_codex_mcp(const char *config_path) {
     const char *suffix = next_section ? next_section : "";
     size_t suffix_len = strlen(suffix);
     size_t new_len = prefix_len + suffix_len;
-    char *result = malloc(new_len + CLI_SKIP_ONE);
+    char *result = CBM_MALLOC(new_len + CLI_SKIP_ONE);
     if (!result) {
-        free(content);
+        CBM_FREE(content);
         return CLI_ERR;
     }
     memcpy(result, content, prefix_len);
@@ -1360,8 +1360,8 @@ int cbm_remove_codex_mcp(const char *config_path) {
     result[new_len] = '\0';
 
     int rc = write_file_str(config_path, result);
-    free(content);
-    free(result);
+    CBM_FREE(content);
+    CBM_FREE(result);
     return rc;
 }
 
@@ -1820,7 +1820,7 @@ static unsigned char *gzip_decompress(const unsigned char *data, int data_len, s
     if (buf_cap > DECOMPRESS_MAX_BYTES) {
         buf_cap = DECOMPRESS_MAX_BYTES;
     }
-    unsigned char *decompressed = malloc(buf_cap);
+    unsigned char *decompressed = CBM_MALLOC(buf_cap);
     if (!decompressed) {
         inflateEnd(&strm);
         return NULL;
@@ -1832,13 +1832,13 @@ static unsigned char *gzip_decompress(const unsigned char *data, int data_len, s
         if (total >= buf_cap) {
             size_t new_cap = buf_cap * GROWTH_FACTOR;
             if (new_cap > DECOMPRESS_MAX_BYTES) {
-                free(decompressed);
+                CBM_FREE(decompressed);
                 inflateEnd(&strm);
                 return NULL;
             }
-            unsigned char *nb = realloc(decompressed, new_cap);
+            unsigned char *nb = CBM_REALLOC(decompressed, new_cap);
             if (!nb) {
-                free(decompressed);
+                CBM_FREE(decompressed);
                 inflateEnd(&strm);
                 return NULL;
             }
@@ -1854,7 +1854,7 @@ static unsigned char *gzip_decompress(const unsigned char *data, int data_len, s
     inflateEnd(&strm);
 
     if (ret != Z_STREAM_END) {
-        free(decompressed);
+        CBM_FREE(decompressed);
         return NULL;
     }
     *out_total = total;
@@ -1888,7 +1888,7 @@ static unsigned char *tar_try_extract_binary(const unsigned char *hdr, char type
     if (data_pos + (size_t)file_size > total) {
         return NULL;
     }
-    unsigned char *result = malloc((size_t)file_size);
+    unsigned char *result = CBM_MALLOC((size_t)file_size);
     if (!result) {
         return NULL;
     }
@@ -1929,7 +1929,7 @@ unsigned char *cbm_extract_binary_from_targz(const unsigned char *data, int data
         unsigned char *found = tar_try_extract_binary(hdr, typeflag, name, decompressed, pos,
                                                       file_size, total, out_len);
         if (found) {
-            free(decompressed);
+            CBM_FREE(decompressed);
             return found;
         }
 
@@ -1937,7 +1937,7 @@ unsigned char *cbm_extract_binary_from_targz(const unsigned char *data, int data
         pos += blocks * TAR_BLOCK_SIZE;
     }
 
-    free(decompressed);
+    CBM_FREE(decompressed);
     return NULL; /* binary not found */
 }
 
@@ -1968,7 +1968,7 @@ static unsigned char *zip_extract_entry(const unsigned char *file_data, uint16_t
         if (comp_size > ZIP_MAX_UNCOMP) {
             return NULL;
         }
-        unsigned char *out = malloc(comp_size);
+        unsigned char *out = CBM_MALLOC(comp_size);
         if (!out) {
             return NULL;
         }
@@ -1980,7 +1980,7 @@ static unsigned char *zip_extract_entry(const unsigned char *file_data, uint16_t
         if (uncomp_size > ZIP_MAX_UNCOMP) {
             return NULL;
         }
-        unsigned char *out = malloc(uncomp_size);
+        unsigned char *out = CBM_MALLOC(uncomp_size);
         if (!out) {
             return NULL;
         }
@@ -1990,13 +1990,13 @@ static unsigned char *zip_extract_entry(const unsigned char *file_data, uint16_t
         strm.next_out = out;
         strm.avail_out = uncomp_size;
         if (inflateInit2(&strm, -MAX_WBITS) != Z_OK) {
-            free(out);
+            CBM_FREE(out);
             return NULL;
         }
         int ret = inflate(&strm, Z_FINISH);
         inflateEnd(&strm);
         if (ret != Z_STREAM_END) {
-            free(out);
+            CBM_FREE(out);
             return NULL;
         }
         *out_len = (int)strm.total_out;
@@ -2141,6 +2141,7 @@ int cbm_remove_indexes(const char *home_dir) {
 /* ── Config store (persistent key-value in _config.db) ─────────── */
 
 #include <sqlite3.h>
+#include "foundation/allocator.h"
 
 struct cbm_config {
     sqlite3 *db;
@@ -2175,7 +2176,7 @@ cbm_config_t *cbm_config_open(const char *cache_dir) {
         return NULL;
     }
 
-    cbm_config_t *cfg = calloc(CBM_ALLOC_ONE, sizeof(*cfg));
+    cbm_config_t *cfg = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*cfg));
     if (!cfg) {
         sqlite3_close(db);
         return NULL;
@@ -2191,7 +2192,7 @@ void cbm_config_close(cbm_config_t *cfg) {
     if (cfg->db) {
         sqlite3_close(cfg->db);
     }
-    free(cfg);
+    CBM_FREE(cfg);
 }
 
 const char *cbm_config_get(cbm_config_t *cfg, const char *key, const char *default_val) {
@@ -3165,7 +3166,7 @@ static int extract_and_install_binary(extract_install_args_t args) {
     long fsize = ftell(f);
     (void)fseek(f, 0, SEEK_SET);
 
-    unsigned char *data = malloc((size_t)fsize);
+    unsigned char *data = CBM_MALLOC((size_t)fsize);
     if (!data) {
         (void)fclose(f);
         cbm_unlink(tmp_archive);
@@ -3181,21 +3182,21 @@ static int extract_and_install_binary(extract_install_args_t args) {
     } else {
         bin_data = cbm_extract_binary_from_zip(data, (int)fsize, &bin_len);
     }
-    free(data);
+    CBM_FREE(data);
     cbm_unlink(tmp_archive);
 
     if (!bin_data || bin_len <= 0) {
         (void)fprintf(stderr, "error: binary not found in archive\n");
-        free(bin_data);
+        CBM_FREE(bin_data);
         return CLI_TRUE;
     }
 
     if (cbm_replace_binary(bin_dest, bin_data, bin_len, CLI_OCTAL_PERM) != 0) {
         (void)fprintf(stderr, "error: cannot write to %s\n", bin_dest);
-        free(bin_data);
+        CBM_FREE(bin_data);
         return CLI_TRUE;
     }
-    free(bin_data);
+    CBM_FREE(bin_data);
     return 0;
 }
 
@@ -3333,7 +3334,7 @@ static char *fetch_latest_tag(void) {
             slash[--len] = '\0';
         }
         if (len > 0) {
-            tag = strdup(slash);
+            tag = CBM_STRDUP(slash);
         }
         break;
     }
@@ -3361,11 +3362,11 @@ static bool check_already_latest(void) {
         } else {
             printf("Already up to date (%s).\n", CBM_VERSION);
         }
-        free(latest);
+        CBM_FREE(latest);
         return true;
     }
     printf("Update available: %s -> %s\n", CBM_VERSION, latest);
-    free(latest);
+    CBM_FREE(latest);
     return false;
 }
 

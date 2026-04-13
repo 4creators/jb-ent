@@ -24,6 +24,7 @@
 #include <store/store.h>
 #include <string.h>
 #include <stdlib.h>
+#include "foundation/allocator.h"
 
 /* ── Helper: create architecture test store ──────────────────────── */
 
@@ -507,50 +508,50 @@ TEST(adr_parse_sections_multiline) {
 
 TEST(adr_render_canonical_order) {
     cbm_adr_sections_t sec = {.count = 2};
-    sec.keys[0] = strdup("STACK");
-    sec.values[0] = strdup("Bar");
-    sec.keys[1] = strdup("PURPOSE");
-    sec.values[1] = strdup("Foo");
+    sec.keys[0] = CBM_STRDUP("STACK");
+    sec.values[0] = CBM_STRDUP("Bar");
+    sec.keys[1] = CBM_STRDUP("PURPOSE");
+    sec.values[1] = CBM_STRDUP("Foo");
     char *rendered = cbm_adr_render(&sec);
     ASSERT_STR_EQ(rendered, "## PURPOSE\nFoo\n\n## STACK\nBar");
-    free(rendered);
+    CBM_FREE(rendered);
     cbm_adr_sections_free(&sec);
     PASS();
 }
 
 TEST(adr_render_all_sections) {
     cbm_adr_sections_t sec = {.count = 6};
-    sec.keys[0] = strdup("PHILOSOPHY");
-    sec.values[0] = strdup("F");
-    sec.keys[1] = strdup("PURPOSE");
-    sec.values[1] = strdup("A");
-    sec.keys[2] = strdup("STACK");
-    sec.values[2] = strdup("B");
-    sec.keys[3] = strdup("ARCHITECTURE");
-    sec.values[3] = strdup("C");
-    sec.keys[4] = strdup("PATTERNS");
-    sec.values[4] = strdup("D");
-    sec.keys[5] = strdup("TRADEOFFS");
-    sec.values[5] = strdup("E");
+    sec.keys[0] = CBM_STRDUP("PHILOSOPHY");
+    sec.values[0] = CBM_STRDUP("F");
+    sec.keys[1] = CBM_STRDUP("PURPOSE");
+    sec.values[1] = CBM_STRDUP("A");
+    sec.keys[2] = CBM_STRDUP("STACK");
+    sec.values[2] = CBM_STRDUP("B");
+    sec.keys[3] = CBM_STRDUP("ARCHITECTURE");
+    sec.values[3] = CBM_STRDUP("C");
+    sec.keys[4] = CBM_STRDUP("PATTERNS");
+    sec.values[4] = CBM_STRDUP("D");
+    sec.keys[5] = CBM_STRDUP("TRADEOFFS");
+    sec.values[5] = CBM_STRDUP("E");
     char *rendered = cbm_adr_render(&sec);
     ASSERT_STR_EQ(rendered, "## PURPOSE\nA\n\n## STACK\nB\n\n## ARCHITECTURE\nC\n\n## "
                             "PATTERNS\nD\n\n## TRADEOFFS\nE\n\n## PHILOSOPHY\nF");
-    free(rendered);
+    CBM_FREE(rendered);
     cbm_adr_sections_free(&sec);
     PASS();
 }
 
 TEST(adr_render_non_canonical) {
     cbm_adr_sections_t sec = {.count = 3};
-    sec.keys[0] = strdup("PURPOSE");
-    sec.values[0] = strdup("Foo");
-    sec.keys[1] = strdup("ZEBRA");
-    sec.values[1] = strdup("Z");
-    sec.keys[2] = strdup("ALPHA");
-    sec.values[2] = strdup("A");
+    sec.keys[0] = CBM_STRDUP("PURPOSE");
+    sec.values[0] = CBM_STRDUP("Foo");
+    sec.keys[1] = CBM_STRDUP("ZEBRA");
+    sec.values[1] = CBM_STRDUP("Z");
+    sec.keys[2] = CBM_STRDUP("ALPHA");
+    sec.values[2] = CBM_STRDUP("A");
     char *rendered = cbm_adr_render(&sec);
     ASSERT_STR_EQ(rendered, "## PURPOSE\nFoo\n\n## ALPHA\nA\n\n## ZEBRA\nZ");
-    free(rendered);
+    CBM_FREE(rendered);
     cbm_adr_sections_free(&sec);
     PASS();
 }
@@ -559,7 +560,7 @@ TEST(adr_render_empty) {
     cbm_adr_sections_t sec = {.count = 0};
     char *rendered = cbm_adr_render(&sec);
     ASSERT_STR_EQ(rendered, "");
-    free(rendered);
+    CBM_FREE(rendered);
     PASS();
 }
 
@@ -571,7 +572,7 @@ TEST(adr_parse_render_roundtrip) {
     cbm_adr_sections_t sec = cbm_adr_parse_sections(original);
     char *rendered = cbm_adr_render(&sec);
     ASSERT_STR_EQ(rendered, original);
-    free(rendered);
+    CBM_FREE(rendered);
     cbm_adr_sections_free(&sec);
     PASS();
 }
@@ -623,7 +624,7 @@ TEST(adr_update_overflow) {
     ASSERT_EQ(cbm_store_adr_store(s, "test", "## PURPOSE\nShort"), CBM_STORE_OK);
 
     /* Create huge content */
-    char *huge = malloc(CBM_ADR_MAX_LENGTH + 2);
+    char *huge = CBM_MALLOC(CBM_ADR_MAX_LENGTH + 2);
     memset(huge, 'x', CBM_ADR_MAX_LENGTH + 1);
     huge[CBM_ADR_MAX_LENGTH + 1] = '\0';
 
@@ -632,7 +633,7 @@ TEST(adr_update_overflow) {
     cbm_adr_t out;
     ASSERT_TRUE(cbm_store_adr_update_sections(s, "test", keys, values, 1, &out) != CBM_STORE_OK);
 
-    free(huge);
+    CBM_FREE(huge);
     cbm_store_close(s);
     PASS();
 }
@@ -724,7 +725,7 @@ TEST(louvain_basic) {
     /* Triangle and pair different */
     ASSERT_TRUE(comm[1] != comm[4]);
 
-    free(result);
+    CBM_FREE(result);
     PASS();
 }
 
@@ -733,7 +734,7 @@ TEST(louvain_empty) {
     int count = 0;
     ASSERT_EQ(cbm_louvain(NULL, 0, NULL, 0, &result, &count), CBM_STORE_OK);
     ASSERT_EQ(count, 0);
-    free(result);
+    CBM_FREE(result);
     PASS();
 }
 
@@ -744,7 +745,7 @@ TEST(louvain_single_node) {
     ASSERT_EQ(cbm_louvain(nodes, 1, NULL, 0, &result, &count), CBM_STORE_OK);
     ASSERT_EQ(count, 1);
     ASSERT_EQ(result[0].node_id, 42);
-    free(result);
+    CBM_FREE(result);
     PASS();
 }
 
@@ -807,7 +808,7 @@ TEST(louvain_converges) {
     }
     ASSERT_TRUE(same_count >= 8);
 
-    free(result);
+    CBM_FREE(result);
     PASS();
 }
 
@@ -874,9 +875,9 @@ TEST(find_architecture_docs) {
             found_arch = true;
         if (strcmp(docs[i], "docs/adr/001-use-sqlite.md") == 0)
             found_adr = true;
-        free(docs[i]);
+        CBM_FREE(docs[i]);
     }
-    free(docs);
+    CBM_FREE(docs);
     ASSERT_TRUE(found_arch);
     ASSERT_TRUE(found_adr);
 
@@ -893,7 +894,7 @@ TEST(find_architecture_docs_empty) {
     int count = 0;
     ASSERT_EQ(cbm_store_find_architecture_docs(s, "test", &docs, &count), CBM_STORE_OK);
     ASSERT_EQ(count, 0);
-    free(docs);
+    CBM_FREE(docs);
 
     cbm_store_close(s);
     PASS();

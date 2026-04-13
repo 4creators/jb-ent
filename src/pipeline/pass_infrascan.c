@@ -38,6 +38,7 @@ enum {
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "foundation/allocator.h"
 
 /* ── Constants ───────────────────────────────────────────────────── */
 
@@ -1225,6 +1226,6 @@ char *cbm_infra_qn(const char *project_name, const char *rel_path, const char *i
         snprintf(result, sizeof(result), "%s.__infra__", base);
     }
 
-    free(base);
-    return strdup(result);
+    CBM_FREE(base);
+    return CBM_STRDUP(result);
 }

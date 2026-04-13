@@ -30,6 +30,7 @@ enum { INCR_RING_BUF = 4, INCR_RING_MASK = 3, INCR_TS_BUF = 24, INCR_WAL_BUF = 1
 #include <sys/stat.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include "foundation/allocator.h"
 
 /* ── Constants ───────────────────────────────────────────────────── */
 
@@ -75,7 +76,7 @@ static int64_t stat_mtime_ns(const struct stat *st) {
  * Caller must free the returned array. */
 static bool *classify_files(cbm_file_info_t *files, int file_count, cbm_file_hash_t *stored,
                             int stored_count, int *out_changed, int *out_unchanged) {
-    bool *changed = calloc((size_t)file_count, sizeof(bool));
+    bool *changed = CBM_CALLOC((size_t)file_count, sizeof(bool));
     if (!changed) {
         return NULL;
     }
@@ -130,19 +131,19 @@ static int find_deleted_files(cbm_file_info_t *files, int file_count, cbm_file_h
 
     int count = 0;
     int cap = CBM_SZ_64;
-    char **deleted = malloc((size_t)cap * sizeof(char *));
+    char **deleted = CBM_MALLOC((size_t)cap * sizeof(char *));
 
     for (int i = 0; i < stored_count; i++) {
         if (!cbm_ht_get(current, stored[i].rel_path)) {
             if (count >= cap) {
                 cap *= PAIR_LEN;
-                char **tmp = realloc(deleted, (size_t)cap * sizeof(char *));
+                char **tmp = CBM_REALLOC(deleted, (size_t)cap * sizeof(char *));
                 if (!tmp) {
                     break;
                 }
                 deleted = tmp;
             }
-            deleted[count++] = strdup(stored[i].rel_path);
+            deleted[count++] = CBM_STRDUP(stored[i].rel_path);
         }
     }
 
@@ -189,7 +190,7 @@ static void run_extract_resolve(cbm_pipeline_ctx_t *ctx, cbm_file_info_t *change
         _Atomic int64_t shared_ids;
         atomic_init(&shared_ids, cbm_gbuf_next_id(ctx->gbuf));
 
-        CBMFileResult **cache = (CBMFileResult **)calloc(ci, sizeof(CBMFileResult *));
+        CBMFileResult **cache = (CBMFileResult **)CBM_CALLOC(ci, sizeof(CBMFileResult *));
         if (cache) {
             cbm_clock_gettime(CLOCK_MONOTONIC, &t);
             cbm_parallel_extract(ctx, changed_files, ci, cache, &shared_ids, worker_count);
@@ -213,7 +214,7 @@ static void run_extract_resolve(cbm_pipeline_ctx_t *ctx, cbm_file_info_t *change
                     cbm_free_result(cache[j]);
                 }
             }
-            free(cache);
+            CBM_FREE(cache);
         }
     } else {
         cbm_log_info("incremental.mode", "mode", "sequential", "changed", itoa_buf(ci));
@@ -333,8 +334,8 @@ int cbm_pipeline_run_incremental(cbm_pipeline_t *p, const char *db_path, cbm_fil
     /* Fast path: nothing changed → skip */
     if (n_changed == 0 && deleted_count == 0) {
         cbm_log_info("incremental.noop", "reason", "no_changes");
-        free(is_changed);
-        free(deleted);
+        CBM_FREE(is_changed);
+        CBM_FREE(deleted);
         cbm_store_free_file_hashes(stored, stored_count);
         cbm_store_close(store);
         return 0;
@@ -344,14 +345,14 @@ int cbm_pipeline_run_incremental(cbm_pipeline_t *p, const char *db_path, cbm_fil
 
     /* Build list of changed files */
     cbm_file_info_t *changed_files =
-        (n_changed > 0) ? malloc((size_t)n_changed * sizeof(cbm_file_info_t)) : NULL;
+        (n_changed > 0) ? CBM_MALLOC((size_t)n_changed * sizeof(cbm_file_info_t)) : NULL;
     int ci = 0;
     for (int i = 0; i < file_count; i++) {
         if (is_changed[i]) {
             changed_files[ci++] = files[i];
         }
     }
-    free(is_changed);
+    CBM_FREE(is_changed);
 
     cbm_log_info("incremental.reparse", "files", itoa_buf(ci));
 
@@ -369,11 +370,11 @@ int cbm_pipeline_run_incremental(cbm_pipeline_t *p, const char *db_path, cbm_fil
     if (load_rc != 0) {
         cbm_log_error("incremental.err", "msg", "load_db_failed");
         cbm_gbuf_free(existing);
-        free(changed_files);
+        CBM_FREE(changed_files);
         for (int i = 0; i < deleted_count; i++) {
-            free(deleted[i]);
+            CBM_FREE(deleted[i]);
         }
-        free(deleted);
+        CBM_FREE(deleted);
         cbm_store_close(store);
         return CBM_NOT_FOUND;
     }
@@ -387,9 +388,9 @@ int cbm_pipeline_run_incremental(cbm_pipeline_t *p, const char *db_path, cbm_fil
     }
     for (int i = 0; i < deleted_count; i++) {
         cbm_gbuf_delete_by_file(existing, deleted[i]);
-        free(deleted[i]);
+        CBM_FREE(deleted[i]);
     }
-    free(deleted);
+    CBM_FREE(deleted);
     cbm_log_info("incremental.purge", "elapsed_ms", itoa_buf((int)elapsed_ms(t)));
 
     /* Step 3-5: Registry + extract + resolve */
@@ -413,7 +414,7 @@ int cbm_pipeline_run_incremental(cbm_pipeline_t *p, const char *db_path, cbm_fil
         if (file_qn) {
             cbm_gbuf_upsert_node(existing, "File", changed_files[i].rel_path, file_qn,
                                  changed_files[i].rel_path, 0, 0, "{}");
-            free(file_qn);
+            CBM_FREE(file_qn);
         }
     }
 
@@ -421,7 +422,7 @@ int cbm_pipeline_run_incremental(cbm_pipeline_t *p, const char *db_path, cbm_fil
     cbm_pipeline_pass_k8s(&ctx, changed_files, ci);
     run_postpasses(&ctx, changed_files, ci, project);
 
-    free(changed_files);
+    CBM_FREE(changed_files);
     cbm_registry_free(registry);
 
     /* Step 7: Dump to disk */

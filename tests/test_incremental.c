@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <time.h>
+#include "foundation/allocator.h"
 
 /* ── Globals ──────────────────────────────────────────────────────── */
 
@@ -181,7 +182,7 @@ static int has_function(const char *name_pattern) {
                            "{\"project\":\"%s\",\"label\":\"Function\",\"name_pattern\":\"%s\"}",
                            g_project, name_pattern);
     int total = count_in_response(resp, "total");
-    free(resp);
+    CBM_FREE(resp);
     return total > 0;
 }
 
@@ -189,7 +190,7 @@ static int count_by_label(const char *label) {
     char *resp =
         call_tool("search_graph", "{\"project\":\"%s\",\"label\":\"%s\"}", g_project, label);
     int total = count_in_response(resp, "total");
-    free(resp);
+    CBM_FREE(resp);
     return total;
 }
 
@@ -260,7 +261,7 @@ static void incremental_teardown(void) {
         unlink(wal);
         unlink(shm);
     }
-    free(g_project);
+    CBM_FREE(g_project);
     g_project = NULL;
 
     th_rmtree(g_tmpdir);
@@ -276,7 +277,7 @@ TEST(incr_full_index) {
     char *resp = index_repo_timed(&ms, &peak_mb);
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     g_full_nodes = get_node_count();
     g_full_edges = get_edge_count();
@@ -352,7 +353,7 @@ TEST(incr_noop_reindex) {
     char *resp = index_repo_timed(&ms, &peak_mb);
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     /* Exact same counts */
     ASSERT_EQ(get_node_count(), g_full_nodes);
@@ -392,7 +393,7 @@ TEST(incr_modify_file) {
     char *resp = index_repo_timed(&ms, &peak_mb);
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT(has_function("incr_modify_extra_a"));
     ASSERT(has_function("incr_modify_extra_b"));
@@ -413,7 +414,7 @@ TEST(incr_formatter_run) {
     /* Baseline */
     char *resp = index_repo();
     ASSERT(resp != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     int nodes_before = get_node_count();
     int edges_before = get_edge_count();
@@ -427,7 +428,7 @@ TEST(incr_formatter_run) {
     resp = index_repo_timed(&ms, &peak_mb);
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     /* Graph should be nearly identical — formatter adds no functions.
      * Warn on >10% variance (can happen with sparse checkout / smaller repos). */
@@ -475,7 +476,7 @@ TEST(incr_add_file) {
     char *resp = index_repo();
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT(has_function("incr_new_entry"));
     ASSERT(has_function("incr_new_validate"));
@@ -492,7 +493,7 @@ TEST(incr_delete_file) {
     char *resp = index_repo();
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT(!has_function("incr_new_entry"));
     ASSERT(!has_function("incr_new_validate"));
@@ -521,7 +522,7 @@ TEST(incr_simultaneous_changes) {
     char *resp = index_repo();
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT(has_function("incr_simul_added"));
     ASSERT(has_function("incr_simul_modified"));
@@ -540,7 +541,7 @@ TEST(incr_empty_file) {
     ASSERT(strstr(resp, "indexed") != NULL);
     ASSERT(has_function("incr_test_injected"));
     delete_file_at("fastapi/incr_empty.py");
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -563,14 +564,14 @@ TEST(incr_syntax_error) {
     ASSERT_LT(diff, 20);
 
     delete_file_at("fastapi/incr_broken.py");
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
 TEST(incr_huge_single_function) {
     /* A single function with 5000 lines — stress test extraction budget */
     size_t sz = 5000 * 30 + 100;
-    char *content = malloc(sz);
+    char *content = CBM_MALLOC(sz);
     ASSERT(content != NULL);
     int pos = 0;
     pos += snprintf(content + pos, sz - (size_t)pos, "def huge_func(x):\n");
@@ -581,12 +582,12 @@ TEST(incr_huge_single_function) {
     (void)pos;
 
     write_file_at("fastapi/incr_huge.py", content);
-    free(content);
+    CBM_FREE(content);
 
     char *resp = index_repo();
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     /* Should extract the function (may be truncated by budget, that's ok) */
     /* Key: must not crash or corrupt graph */
@@ -615,12 +616,12 @@ TEST(incr_binary_content) {
     ASSERT(has_function("incr_test_injected"));
 
     delete_file_at("fastapi/incr_binary.py");
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
 TEST(incr_large_generated) {
-    char *content = malloc(300 * 80);
+    char *content = CBM_MALLOC(300 * 80);
     ASSERT(content != NULL);
     content[0] = '\0';
     for (int i = 0; i < 300; i++) {
@@ -630,7 +631,7 @@ TEST(incr_large_generated) {
     }
 
     write_file_at("fastapi/incr_generated.py", content);
-    free(content);
+    CBM_FREE(content);
 
     char *resp = index_repo();
     ASSERT(resp != NULL);
@@ -639,7 +640,7 @@ TEST(incr_large_generated) {
     ASSERT(has_function("incr_gen_299"));
 
     delete_file_at("fastapi/incr_generated.py");
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -656,7 +657,7 @@ TEST(incr_new_subdir) {
 
     delete_file_at("fastapi/newpkg/handler.py");
     delete_file_at("fastapi/newpkg/__init__.py");
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -667,7 +668,7 @@ TEST(incr_new_subdir) {
 TEST(incr_rapid_reindex) {
     char *resp = index_repo();
     ASSERT(resp != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     int baseline_nodes = get_node_count();
     int baseline_edges = get_edge_count();
@@ -676,7 +677,7 @@ TEST(incr_rapid_reindex) {
         resp = index_repo();
         ASSERT(resp != NULL);
         ASSERT(strstr(resp, "indexed") != NULL);
-        free(resp);
+        CBM_FREE(resp);
     }
 
     ASSERT_EQ(get_node_count(), baseline_nodes);
@@ -690,7 +691,7 @@ TEST(incr_replace_file_content) {
 
     char *resp = index_repo();
     ASSERT(resp != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT(has_function("replace_original_a"));
     ASSERT(has_function("replace_original_b"));
@@ -701,7 +702,7 @@ TEST(incr_replace_file_content) {
 
     resp = index_repo();
     ASSERT(resp != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT(!has_function("replace_original_a"));
     ASSERT(!has_function("replace_original_b"));
@@ -727,7 +728,7 @@ TEST(incr_batch_add_delete) {
     char *resp = index_repo();
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT(has_function("batch_0"));
     ASSERT(has_function("batch_19"));
@@ -742,7 +743,7 @@ TEST(incr_batch_add_delete) {
 
     resp = index_repo();
     ASSERT(resp != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT(!has_function("batch_0"));
     ASSERT(!has_function("batch_19"));
@@ -764,7 +765,7 @@ TEST(incr_db_deleted_recovery) {
     char *resp = index_repo_timed(&ms, &peak_mb);
     ASSERT(resp != NULL);
     ASSERT(strstr(resp, "indexed") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     /* Full reindex must produce similar count */
     int nodes_after = get_node_count();
@@ -783,7 +784,7 @@ TEST(incr_accuracy_vs_full) {
 
     char *resp = index_repo();
     ASSERT(resp != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     int incr_nodes = get_node_count();
     int incr_edges = get_edge_count();
@@ -793,7 +794,7 @@ TEST(incr_accuracy_vs_full) {
     unlink(g_dbpath);
     resp = index_repo();
     ASSERT(resp != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     int full_nodes = get_node_count();
     int full_edges = get_edge_count();
@@ -823,7 +824,7 @@ TEST(incr_perf_single_file_fast) {
     size_t peak_mb = 0;
     char *resp = index_repo_timed(&ms, &peak_mb);
     ASSERT(resp != NULL);
-    free(resp);
+    CBM_FREE(resp);
 #define PERF_WARN_MS 15000 /* warn above 15s — slow CI runners may exceed this */
 
     if ((int)ms > PERF_WARN_MS) {
@@ -928,7 +929,7 @@ TEST(tool_list_projects_basic) {
     char *r = call_tool_timed("list_projects", &ms, "{}");
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "projects") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -941,7 +942,7 @@ TEST(tool_list_projects_has_current) {
      * which will appear in the path-derived name regardless of escaping. */
     /* Project list must contain at least one entry */
     ASSERT(strstr(r, "projects") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -952,7 +953,7 @@ TEST(tool_index_status_basic) {
     char *r = call_tool_timed("index_status", &ms, "{\"project\":\"%s\"}", g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "nodes") != NULL || strstr(r, "indexed") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -961,7 +962,7 @@ TEST(tool_index_status_nonexistent) {
     char *r = call_tool_timed("index_status", &ms, "{\"project\":\"does-not-exist-xyz\"}");
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "not") != NULL || strstr(r, "error") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -975,7 +976,7 @@ TEST(tool_schema_has_labels) {
     ASSERT(strstr(r, "Method") != NULL);
     ASSERT(strstr(r, "Module") != NULL);
     ASSERT(strstr(r, "Variable") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -990,7 +991,7 @@ TEST(tool_schema_has_edge_types) {
     /* Schema should also report node and edge counts */
     ASSERT(resp_has_key(r, "node_labels") || resp_has_key(r, "labels") ||
            strstr(r, "Function") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1007,7 +1008,7 @@ TEST(tool_sg_label_function) {
     ASSERT(all_results_have_label(r, "Function"));
     /* Must not contain Method results */
     ASSERT(strstr(r, "\"Method\"") == NULL && strstr(r, "\\\"Method\\\"") == NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1020,7 +1021,7 @@ TEST(tool_sg_label_method) {
     ASSERT_GT(total, 50);
     /* Verify all returned results actually have label=Method */
     ASSERT(all_results_have_label(r, "Method"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1031,7 +1032,7 @@ TEST(tool_sg_label_module) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 200);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1042,7 +1043,7 @@ TEST(tool_sg_label_variable) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1054,7 +1055,7 @@ TEST(tool_sg_label_class) {
     /* FastAPI has classes */
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1065,7 +1066,7 @@ TEST(tool_sg_label_route) {
     TOOL_OK(r, ms);
     /* May or may not have routes */
     ASSERT(strstr(r, "total") != NULL || strstr(r, "results") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1076,7 +1077,7 @@ TEST(tool_sg_label_nonexistent) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_EQ(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1091,7 +1092,7 @@ TEST(tool_sg_name_exact) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_EQ(total, 1);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1104,7 +1105,7 @@ TEST(tool_sg_name_regex) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1117,7 +1118,7 @@ TEST(tool_sg_name_no_match) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_EQ(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1132,7 +1133,7 @@ TEST(tool_sg_min_degree) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1146,7 +1147,7 @@ TEST(tool_sg_max_degree_zero) {
     /* Isolated functions (no edges) */
     int total = count_in_response(r, "total");
     ASSERT_GTE(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1159,7 +1160,7 @@ TEST(tool_sg_degree_range) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1177,7 +1178,7 @@ TEST(tool_sg_limit) {
     ASSERT_GT(total, 100);
     /* but has_more should be true (pagination indicator) */
     ASSERT(resp_has_key(r, "has_more"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1189,7 +1190,7 @@ TEST(tool_sg_offset) {
                               g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "results") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1205,7 +1206,7 @@ TEST(tool_sg_file_pattern) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1220,7 +1221,7 @@ TEST(tool_sg_include_connected) {
                               g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "connected") != NULL || strstr(r, "results") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1235,7 +1236,7 @@ TEST(tool_sg_relationship) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1250,7 +1251,7 @@ TEST(tool_sg_qn_pattern) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1265,7 +1266,7 @@ TEST(tool_sg_combined_filters) {
                               g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "results") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1277,7 +1278,7 @@ TEST(tool_sg_project_only) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 1000);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1290,7 +1291,7 @@ TEST(tool_sg_invalid_project) {
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "error") != NULL || strstr(r, "not found") != NULL ||
            strstr(r, "not_found") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1306,7 +1307,7 @@ TEST(tool_qg_match_nodes) {
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
     ASSERT_LTE(total, 10);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1320,7 +1321,7 @@ TEST(tool_qg_match_edges) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1334,7 +1335,7 @@ TEST(tool_qg_match_imports) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1348,7 +1349,7 @@ TEST(tool_qg_match_defines) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1362,7 +1363,7 @@ TEST(tool_qg_match_contains) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1378,7 +1379,7 @@ TEST(tool_qg_where_name) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_EQ(total, 1);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1394,7 +1395,7 @@ TEST(tool_qg_two_hop) {
     TOOL_OK(r, ms);
     /* May have 2-hop call chains */
     ASSERT(strstr(r, "columns") != NULL || strstr(r, "rows") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1409,7 +1410,7 @@ TEST(tool_qg_max_rows) {
                                g_project);
     TOOL_OK(r1, ms);
     int total_unlimited = count_in_response(r1, "total");
-    free(r1);
+    CBM_FREE(r1);
 
     /* Same query without LIMIT but with max_rows=3 — must cap results */
     char *r2 = call_tool_timed("query_graph", &ms,
@@ -1422,7 +1423,7 @@ TEST(tool_qg_max_rows) {
     ASSERT_LTE(total_limited, 3);
     /* Without max_rows should have more than with */
     ASSERT_GT(total_unlimited, total_limited);
-    free(r2);
+    CBM_FREE(r2);
     PASS();
 }
 
@@ -1439,7 +1440,7 @@ TEST(tool_qg_return_properties) {
     ASSERT_GT(total, 0);
     /* Should have both columns */
     ASSERT(strstr(r, "n.name") != NULL || strstr(r, "columns") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1452,7 +1453,7 @@ TEST(tool_qg_invalid_project) {
                               "\"query\":\"MATCH (n) RETURN n LIMIT 1\"}");
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "error") != NULL || strstr(r, "not found") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1469,7 +1470,7 @@ TEST(tool_sc_compact) {
     /* compact mode has "results" key with enriched matches */
     ASSERT(resp_has_key(r, "results"));
     ASSERT(resp_has_key(r, "total_results"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1483,7 +1484,7 @@ TEST(tool_sc_full) {
     NOT_ERROR(r);
     /* full mode includes source code */
     ASSERT(resp_has_key(r, "results") || resp_has_key(r, "raw_matches"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1497,7 +1498,7 @@ TEST(tool_sc_files) {
     NOT_ERROR(r);
     /* files mode has "files" key, NOT "results" */
     ASSERT(resp_has_key(r, "files"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1511,7 +1512,7 @@ TEST(tool_sc_regex) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1525,7 +1526,7 @@ TEST(tool_sc_file_pattern) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1537,7 +1538,7 @@ TEST(tool_sc_path_filter) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1551,7 +1552,7 @@ TEST(tool_sc_context) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1564,7 +1565,7 @@ TEST(tool_sc_no_results) {
                               "\"pattern\":\"xyzzy_absolutely_no_match_99\"}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1580,7 +1581,7 @@ TEST(tool_snippet_short_name) {
     /* Should return source or suggestions */
     ASSERT(strstr(r, "def") != NULL || strstr(r, "return") != NULL ||
            strstr(r, "suggest") != NULL || strstr(r, "match") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1592,7 +1593,7 @@ TEST(tool_snippet_nonexistent) {
                               g_project);
     TOOL_OK(r, ms);
     /* Should return not found or suggestions, not crash */
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1612,7 +1613,7 @@ TEST(tool_snippet_include_neighbors) {
     ASSERT(resp_has_key(r, "source"));
     /* Must have callers/callees arrays (may be empty) */
     ASSERT(resp_has_key(r, "callers") || resp_has_key(r, "callees"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1631,7 +1632,7 @@ TEST(tool_trace_outbound) {
     ASSERT(resp_has_key(r, "callees"));
     ASSERT(resp_lacks_key(r, "callers"));
     ASSERT(resp_has_key(r, "direction"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1647,7 +1648,7 @@ TEST(tool_trace_inbound) {
     /* direction=inbound → response has "callers", no "callees" */
     ASSERT(resp_has_key(r, "callers"));
     ASSERT(resp_lacks_key(r, "callees"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1663,7 +1664,7 @@ TEST(tool_trace_both) {
     /* direction=both → response has both "callers" and "callees" */
     ASSERT(resp_has_key(r, "callers"));
     ASSERT(resp_has_key(r, "callees"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1676,7 +1677,7 @@ TEST(tool_trace_depth_1) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1689,7 +1690,7 @@ TEST(tool_trace_nonexistent) {
                               g_project);
     TOOL_OK(r, ms);
     /* Should return not found or empty, not crash */
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1703,7 +1704,7 @@ TEST(tool_trace_edge_types) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1715,7 +1716,7 @@ TEST(tool_arch_structure) {
                               "{\"project\":\"%s\",\"aspects\":[\"structure\"]}", g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "fastapi") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1725,7 +1726,7 @@ TEST(tool_arch_all) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1734,7 +1735,7 @@ TEST(tool_arch_no_aspects) {
     char *r = call_tool_timed("get_architecture", &ms, "{\"project\":\"%s\"}", g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1749,7 +1750,7 @@ TEST(tool_detect_changes_default) {
     ASSERT(resp_has_key(r, "changed_count"));
     ASSERT(resp_has_key(r, "impacted_symbols"));
     ASSERT(resp_has_key(r, "depth"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1759,7 +1760,7 @@ TEST(tool_detect_changes_custom_branch) {
                               "{\"project\":\"%s\",\"base_branch\":\"HEAD\"}", g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "changed") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1767,7 +1768,7 @@ TEST(tool_detect_changes_depth) {
     double ms;
     char *r = call_tool_timed("detect_changes", &ms, "{\"project\":\"%s\",\"depth\":5}", g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1779,7 +1780,7 @@ TEST(tool_adr_get) {
         call_tool_timed("manage_adr", &ms, "{\"project\":\"%s\",\"mode\":\"get\"}", g_project);
     TOOL_OK(r, ms);
     /* May return empty if no ADR exists yet */
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1788,7 +1789,7 @@ TEST(tool_adr_sections) {
     char *r =
         call_tool_timed("manage_adr", &ms, "{\"project\":\"%s\",\"mode\":\"sections\"}", g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1799,7 +1800,7 @@ TEST(tool_ingest_traces_empty) {
     char *r =
         call_tool_timed("ingest_traces", &ms, "{\"project\":\"%s\",\"traces\":[]}", g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1809,7 +1810,7 @@ TEST(tool_ingest_traces_basic) {
         "ingest_traces", &ms,
         "{\"project\":\"%s\",\"traces\":[{\"caller\":\"a\",\"callee\":\"b\"}]}", g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1822,7 +1823,7 @@ TEST(tool_err_query_bad_project) {
                               "\"query\":\"MATCH (n) RETURN n LIMIT 1\"}");
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "error") != NULL || strstr(r, "not found") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1830,7 +1831,7 @@ TEST(tool_err_search_code_bad_project) {
     double ms;
     char *r = call_tool_timed("search_code", &ms, "{\"project\":\"xxx\",\"pattern\":\"test\"}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1839,7 +1840,7 @@ TEST(tool_err_snippet_bad_project) {
     char *r = call_tool_timed("get_code_snippet", &ms,
                               "{\"project\":\"xxx\",\"qualified_name\":\"test\"}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1849,7 +1850,7 @@ TEST(tool_err_trace_bad_project) {
                               "{\"project\":\"xxx\","
                               "\"function_name\":\"test\",\"direction\":\"both\"}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1857,7 +1858,7 @@ TEST(tool_err_arch_bad_project) {
     double ms;
     char *r = call_tool_timed("get_architecture", &ms, "{\"project\":\"xxx\"}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1865,7 +1866,7 @@ TEST(tool_err_detect_bad_project) {
     double ms;
     char *r = call_tool_timed("detect_changes", &ms, "{\"project\":\"xxx\"}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1873,7 +1874,7 @@ TEST(tool_err_delete_nonexistent) {
     double ms;
     char *r = call_tool_timed("delete_project", &ms, "{\"project\":\"xxx-nonexistent\"}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1885,7 +1886,7 @@ TEST(tool_index_mode_fast) {
                               g_repodir);
     ASSERT(r != NULL);
     ASSERT(strstr(r, "indexed") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1894,7 +1895,7 @@ TEST(tool_index_invalid_path) {
     char *r = call_tool_timed("index_repository", &ms, "{\"repo_path\":\"/nonexistent/path/xyz\"}");
     TOOL_OK(r, ms);
     /* Should fail gracefully */
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1904,7 +1905,7 @@ TEST(tool_index_missing_param) {
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "required") != NULL || strstr(r, "error") != NULL ||
            strstr(r, "repo_path") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1919,7 +1920,7 @@ TEST(tool_sg_exclude_entry_points) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GTE(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1932,7 +1933,7 @@ TEST(tool_sg_exclude_entry_points_false) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GTE(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1946,7 +1947,7 @@ TEST(tool_sg_high_offset) {
                               g_project);
     TOOL_OK(r, ms);
     /* Should return 0 results at this offset */
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1961,7 +1962,7 @@ TEST(tool_sg_name_pattern_dot_star) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 100);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1974,7 +1975,7 @@ TEST(tool_sg_name_pattern_anchored) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_EQ(total, 1);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -1990,7 +1991,7 @@ TEST(tool_qg_count_functions) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 50);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2003,7 +2004,7 @@ TEST(tool_qg_edge_properties) {
         g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "columns") != NULL || strstr(r, "rows") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2017,7 +2018,7 @@ TEST(tool_qg_node_file_path) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_EQ(total, 1);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2032,7 +2033,7 @@ TEST(tool_qg_match_module_defines) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_GT(total, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2046,7 +2047,7 @@ TEST(tool_qg_max_rows_1) {
     TOOL_OK(r, ms);
     int total = count_in_response(r, "total");
     ASSERT_EQ(total, 1);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2060,7 +2061,7 @@ TEST(tool_sc_limit_1) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2072,7 +2073,7 @@ TEST(tool_sc_limit_50) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2090,7 +2091,7 @@ TEST(tool_sc_combined) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2130,12 +2131,12 @@ TEST(tool_snippet_full_qn) {
                     TOOL_OK(r, ms);
                     ASSERT(strstr(r, "source") != NULL || strstr(r, "def") != NULL ||
                            strstr(r, "return") != NULL);
-                    free(r);
+                    CBM_FREE(r);
                 }
             }
         }
     }
-    free(sr);
+    CBM_FREE(sr);
     PASS();
 }
 
@@ -2147,7 +2148,7 @@ TEST(tool_arch_dependencies) {
                               "{\"project\":\"%s\",\"aspects\":[\"dependencies\"]}", g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2157,7 +2158,7 @@ TEST(tool_arch_entry_points) {
                               "{\"project\":\"%s\",\"aspects\":[\"entry_points\"]}", g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2167,7 +2168,7 @@ TEST(tool_arch_routes) {
                               "{\"project\":\"%s\",\"aspects\":[\"routes\"]}", g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2179,7 +2180,7 @@ TEST(tool_arch_multi_aspects) {
         g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2190,7 +2191,7 @@ TEST(tool_detect_changes_scope) {
     char *r = call_tool_timed("detect_changes", &ms, "{\"project\":\"%s\",\"scope\":\"fastapi/\"}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2203,13 +2204,13 @@ TEST(tool_adr_update) {
                               "\"content\":\"# Test ADR\\n\\nThis is a test ADR.\"}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
 
     /* Verify it was stored */
     r = call_tool_timed("manage_adr", &ms, "{\"project\":\"%s\",\"mode\":\"get\"}", g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "Test ADR") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2220,7 +2221,7 @@ TEST(tool_adr_sections_array) {
                               "\"sections\":[\"overview\",\"decisions\"]}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2236,7 +2237,7 @@ TEST(tool_ingest_traces_multiple) {
                               "]}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2252,7 +2253,7 @@ TEST(tool_trace_imports_only) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2266,7 +2267,7 @@ TEST(tool_trace_calls_and_imports) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2279,7 +2280,7 @@ TEST(tool_trace_deep) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2298,7 +2299,7 @@ TEST(tool_sg_rel_imports) {
     TOOL_OK(r, ms);
     int t = count_in_response(r, "total");
     ASSERT_GT(t, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2311,7 +2312,7 @@ TEST(tool_sg_rel_defines) {
     TOOL_OK(r, ms);
     int t = count_in_response(r, "total");
     ASSERT_GT(t, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2322,7 +2323,7 @@ TEST(tool_sg_rel_contains_file) {
                               "\"relationship\":\"CONTAINS_FILE\",\"min_degree\":1}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2333,7 +2334,7 @@ TEST(tool_sg_label_file) {
     char *r =
         call_tool_timed("search_graph", &ms, "{\"project\":\"%s\",\"label\":\"File\"}", g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2342,7 +2343,7 @@ TEST(tool_sg_label_folder) {
     char *r = call_tool_timed("search_graph", &ms, "{\"project\":\"%s\",\"label\":\"Folder\"}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2351,7 +2352,7 @@ TEST(tool_sg_label_package) {
     char *r = call_tool_timed("search_graph", &ms, "{\"project\":\"%s\",\"label\":\"Package\"}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2367,7 +2368,7 @@ TEST(tool_sg_include_connected_false) {
     TOOL_OK(r, ms);
     int t = count_in_response(r, "total");
     ASSERT_EQ(t, 1);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2382,7 +2383,7 @@ TEST(tool_sg_qn_and_label) {
     TOOL_OK(r, ms);
     int t = count_in_response(r, "total");
     ASSERT_GT(t, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2396,7 +2397,7 @@ TEST(tool_sg_file_and_name) {
                               "\"name_pattern\":\".*\",\"limit\":5}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2412,7 +2413,7 @@ TEST(tool_qg_configures) {
     TOOL_OK(r, ms);
     /* May have 0 results if no CONFIGURES edges in FastAPI */
     ASSERT(strstr(r, "columns") != NULL || strstr(r, "rows") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2427,7 +2428,7 @@ TEST(tool_qg_handles) {
                         g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "columns") != NULL || strstr(r, "rows") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2442,7 +2443,7 @@ TEST(tool_qg_defines_method) {
                               g_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "columns") != NULL || strstr(r, "rows") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2458,7 +2459,7 @@ TEST(tool_qg_no_limit) {
     TOOL_OK(r, ms);
     int t = count_in_response(r, "total");
     ASSERT_GT(t, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2474,7 +2475,7 @@ TEST(tool_qg_empty_result) {
     TOOL_OK(r, ms);
     int t = count_in_response(r, "total");
     ASSERT_EQ(t, 0);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2488,7 +2489,7 @@ TEST(tool_sc_regex_false) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2502,7 +2503,7 @@ TEST(tool_sc_context_zero) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2516,7 +2517,7 @@ TEST(tool_sc_special_chars) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2534,7 +2535,7 @@ TEST(tool_snippet_neighbors_false) {
     ASSERT(resp_lacks_key(r, "caller_names"));
     /* But must still have source code */
     ASSERT(resp_has_key(r, "source"));
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2548,7 +2549,7 @@ TEST(tool_snippet_class) {
                               "\"qualified_name\":\"FastAPI\"}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2563,7 +2564,7 @@ TEST(tool_trace_depth_0) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2579,7 +2580,7 @@ TEST(tool_trace_defines_only) {
                               g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2597,7 +2598,7 @@ TEST(tool_trace_include_tests) {
     TOOL_OK(r, ms);
     NOT_ERROR(r);
     /* Result should not contain is_test markers when tests are excluded */
-    free(r);
+    CBM_FREE(r);
 
     /* With include_tests=true: test files should appear with is_test marker */
     r = call_tool_timed("trace_path", &ms,
@@ -2608,7 +2609,7 @@ TEST(tool_trace_include_tests) {
                         g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2630,7 +2631,7 @@ TEST(tool_trace_risk_labels) {
     if (strstr(r, "\"hop\"") != NULL) {
         ASSERT(strstr(r, "\"risk\"") != NULL);
     }
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2644,7 +2645,7 @@ TEST(tool_detect_nonexistent_branch) {
                               g_project);
     TOOL_OK(r, ms);
     /* Should handle gracefully — git diff may fail or return empty */
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2654,7 +2655,7 @@ TEST(tool_detect_depth_1) {
     double ms;
     char *r = call_tool_timed("detect_changes", &ms, "{\"project\":\"%s\",\"depth\":1}", g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2664,7 +2665,7 @@ TEST(tool_adr_default_mode) {
     double ms;
     char *r = call_tool_timed("manage_adr", &ms, "{\"project\":\"%s\"}", g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2677,7 +2678,7 @@ TEST(tool_adr_update_empty) {
                               "\"content\":\"\"}",
                               g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2689,7 +2690,7 @@ TEST(tool_ingest_traces_partial) {
         call_tool_timed("ingest_traces", &ms,
                         "{\"project\":\"%s\",\"traces\":[{\"caller\":\"onlyA\"}]}", g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2699,7 +2700,7 @@ TEST(tool_err_schema_bad_project) {
     double ms;
     char *r = call_tool_timed("get_graph_schema", &ms, "{\"project\":\"nonexistent-xyz\"}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2709,7 +2710,7 @@ TEST(tool_err_index_status_no_project) {
     double ms;
     char *r = call_tool_timed("index_status", &ms, "{}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2720,7 +2721,7 @@ TEST(tool_err_adr_bad_project) {
     char *r =
         call_tool_timed("manage_adr", &ms, "{\"project\":\"nonexistent-xyz\",\"mode\":\"get\"}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2731,7 +2732,7 @@ TEST(tool_err_ingest_bad_project) {
     char *r =
         call_tool_timed("ingest_traces", &ms, "{\"project\":\"nonexistent-xyz\",\"traces\":[]}");
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2741,7 +2742,7 @@ TEST(tool_err_ingest_no_traces) {
     double ms;
     char *r = call_tool_timed("ingest_traces", &ms, "{\"project\":\"%s\"}", g_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2753,7 +2754,7 @@ TEST(tool_index_mode_full) {
                               g_repodir);
     ASSERT(r != NULL);
     ASSERT(strstr(r, "indexed") != NULL);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2765,7 +2766,7 @@ TEST(tool_arch_empty_aspects) {
         call_tool_timed("get_architecture", &ms, "{\"project\":\"%s\",\"aspects\":[]}", g_project);
     TOOL_OK(r, ms);
     NOT_ERROR(r);
-    free(r);
+    CBM_FREE(r);
     PASS();
 }
 
@@ -2788,7 +2789,7 @@ TEST(tool_delete_and_verify) {
     double ms;
     char *r = call_tool_timed("index_repository", &ms, "{\"repo_path\":\"%s\"}", tmpdir2);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
 
     char *throwaway_project = cbm_project_name_from_path(tmpdir2);
     ASSERT(throwaway_project != NULL);
@@ -2796,21 +2797,21 @@ TEST(tool_delete_and_verify) {
     /* Verify it exists */
     r = call_tool_timed("index_status", &ms, "{\"project\":\"%s\"}", throwaway_project);
     TOOL_OK(r, ms);
-    free(r);
+    CBM_FREE(r);
 
     /* Delete it */
     r = call_tool_timed("delete_project", &ms, "{\"project\":\"%s\"}", throwaway_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "deleted") != NULL);
-    free(r);
+    CBM_FREE(r);
 
     /* Verify it's gone */
     r = call_tool_timed("index_status", &ms, "{\"project\":\"%s\"}", throwaway_project);
     TOOL_OK(r, ms);
     ASSERT(strstr(r, "not") != NULL || strstr(r, "error") != NULL);
-    free(r);
+    CBM_FREE(r);
 
-    free(throwaway_project);
+    CBM_FREE(throwaway_project);
     PASS();
 }
 
@@ -2848,7 +2849,7 @@ SUITE(incremental) {
             fclose(f);
         }
         char *resp = index_repo();
-        free(resp);
+        CBM_FREE(resp);
         g_full_nodes = get_node_count();
         g_full_edges = get_edge_count();
         g_full_calls = get_edge_count_by_type("CALLS");

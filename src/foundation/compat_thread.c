@@ -17,6 +17,7 @@
  * which is too small for deep pipeline passes (configlink, etc.). */
 #define CBM_DEFAULT_STACK_SIZE ((size_t)8 * CBM_SZ_1K * CBM_SZ_1K)
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* ── Thread ───────────────────────────────────────────────────── */
 
@@ -31,7 +32,7 @@ static DWORD WINAPI win_thread_wrapper(LPVOID lpParam) {
     win_thread_arg_t *a = (win_thread_arg_t *)lpParam;
     void *(*fn)(void *) = a->fn;
     void *arg = a->arg;
-    free(a);
+    CBM_FREE(a);
     fn(arg);
     return 0;
 }
@@ -40,7 +41,7 @@ int cbm_thread_create(cbm_thread_t *t, size_t stack_size, void *(*fn)(void *), v
     if (stack_size == 0) {
         stack_size = CBM_DEFAULT_STACK_SIZE;
     }
-    win_thread_arg_t *a = (win_thread_arg_t *)malloc(sizeof(win_thread_arg_t));
+    win_thread_arg_t *a = (win_thread_arg_t *)CBM_MALLOC(sizeof(win_thread_arg_t));
     if (!a) {
         return CBM_NOT_FOUND;
     }
@@ -48,7 +49,7 @@ int cbm_thread_create(cbm_thread_t *t, size_t stack_size, void *(*fn)(void *), v
     a->arg = arg;
     t->handle = CreateThread(NULL, stack_size, win_thread_wrapper, a, 0, NULL);
     if (!t->handle) {
-        free(a);
+        CBM_FREE(a);
         return CBM_NOT_FOUND;
     }
     return 0;
@@ -142,7 +143,7 @@ int cbm_aligned_alloc(void **ptr, size_t alignment, size_t size) {
 }
 
 void cbm_aligned_free(void *ptr) {
-    free(ptr);
+    CBM_FREE(ptr);
 }
 
 #endif

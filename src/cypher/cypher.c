@@ -40,6 +40,7 @@ enum {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
@@ -48,7 +49,7 @@ static char *heap_strdup(const char *s) {
         return NULL;
     }
     size_t len = strlen(s);
-    char *d = malloc(len + SKIP_ONE);
+    char *d = CBM_MALLOC(len + SKIP_ONE);
     if (d) {
         memcpy(d, s, len + 1);
     }
@@ -56,7 +57,7 @@ static char *heap_strdup(const char *s) {
 }
 
 static char *heap_strndup(const char *s, size_t n) {
-    char *d = malloc(n + SKIP_ONE);
+    char *d = CBM_MALLOC(n + SKIP_ONE);
     if (d) {
         memcpy(d, s, n);
         d[n] = '\0';
@@ -406,10 +407,10 @@ void cbm_lex_free(cbm_lex_result_t *r) {
         return;
     }
     for (int i = 0; i < r->count; i++) {
-        free((void *)r->tokens[i].text);
+        CBM_FREE((void *)r->tokens[i].text);
     }
-    free(r->tokens);
-    free(r->error);
+    CBM_FREE(r->tokens);
+    CBM_FREE(r->error);
     memset(r, 0, sizeof(*r));
 }
 
@@ -469,21 +470,21 @@ static int parse_props(parser_t *p, cbm_prop_filter_t **out, int *count) {
 
     int cap = CYP_INIT_CAP4;
     int n = 0;
-    cbm_prop_filter_t *arr = malloc(cap * sizeof(cbm_prop_filter_t));
+    cbm_prop_filter_t *arr = CBM_MALLOC(cap * sizeof(cbm_prop_filter_t));
 
     while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
         const cbm_token_t *key = expect(p, TOK_IDENT);
         if (!key) {
-            free(arr);
+            CBM_FREE(arr);
             return CBM_NOT_FOUND;
         }
         if (!expect(p, TOK_COLON)) {
-            free(arr);
+            CBM_FREE(arr);
             return CBM_NOT_FOUND;
         }
         const cbm_token_t *val = expect(p, TOK_STRING);
         if (!val) {
-            free(arr);
+            CBM_FREE(arr);
             return CBM_NOT_FOUND;
         }
 
@@ -569,11 +570,11 @@ static void parse_hop_range(parser_t *p, int *min_hops, int *max_hops) {
 static int parse_rel_types(parser_t *p, cbm_rel_pattern_t *out) {
     int cap = CYP_INIT_CAP4;
     int n = 0;
-    const char **types = malloc(cap * sizeof(const char *));
+    const char **types = CBM_MALLOC(cap * sizeof(const char *));
 
     const cbm_token_t *t = expect(p, TOK_IDENT);
     if (!t) {
-        free(types);
+        CBM_FREE(types);
         return CBM_NOT_FOUND;
     }
     types[n++] = heap_strdup(t->text);
@@ -582,9 +583,9 @@ static int parse_rel_types(parser_t *p, cbm_rel_pattern_t *out) {
         t = expect(p, TOK_IDENT);
         if (!t) {
             for (int i = 0; i < n; i++) {
-                free((void *)types[i]);
+                CBM_FREE((void *)types[i]);
             }
-            free(types);
+            CBM_FREE(types);
             return CBM_NOT_FOUND;
         }
         if (n >= cap) {
@@ -671,14 +672,14 @@ static void expr_free(cbm_expr_t *e) {
     while (top > 0) {
         cbm_expr_t *cur = stack[--top];
         if (cur->type == EXPR_CONDITION) {
-            free((void *)cur->cond.variable);
-            free((void *)cur->cond.property);
-            free((void *)cur->cond.op);
-            free((void *)cur->cond.value);
+            CBM_FREE((void *)cur->cond.variable);
+            CBM_FREE((void *)cur->cond.property);
+            CBM_FREE((void *)cur->cond.op);
+            CBM_FREE((void *)cur->cond.value);
             for (int i = 0; i < cur->cond.in_value_count; i++) {
-                free((void *)cur->cond.in_values[i]);
+                CBM_FREE((void *)cur->cond.in_values[i]);
             }
-            free(cur->cond.in_values);
+            CBM_FREE(cur->cond.in_values);
         }
         if (cur->right && top < EXPR_FREE_STACK) {
             stack[top++] = cur->right;
@@ -686,19 +687,19 @@ static void expr_free(cbm_expr_t *e) {
         if (cur->left && top < EXPR_FREE_STACK) {
             stack[top++] = cur->left;
         }
-        free(cur);
+        CBM_FREE(cur);
     }
 }
 
 static cbm_expr_t *expr_leaf(cbm_condition_t c) {
-    cbm_expr_t *e = calloc(CBM_ALLOC_ONE, sizeof(cbm_expr_t));
+    cbm_expr_t *e = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_expr_t));
     e->type = EXPR_CONDITION;
     e->cond = c;
     return e;
 }
 
 static cbm_expr_t *expr_binary(cbm_expr_type_t type, cbm_expr_t *left, cbm_expr_t *right) {
-    cbm_expr_t *e = calloc(CBM_ALLOC_ONE, sizeof(cbm_expr_t));
+    cbm_expr_t *e = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_expr_t));
     e->type = type;
     e->left = left;
     e->right = right;
@@ -706,7 +707,7 @@ static cbm_expr_t *expr_binary(cbm_expr_type_t type, cbm_expr_t *left, cbm_expr_
 }
 
 static cbm_expr_t *expr_not(cbm_expr_t *child) {
-    cbm_expr_t *e = calloc(CBM_ALLOC_ONE, sizeof(cbm_expr_t));
+    cbm_expr_t *e = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_expr_t));
     e->type = EXPR_NOT;
     e->left = child;
     return e;
@@ -755,14 +756,14 @@ static cbm_expr_t *parse_in_list(parser_t *p, cbm_condition_t *c) {
     advance(p);
     c->op = heap_strdup("IN");
     if (!expect(p, TOK_LBRACKET)) {
-        free((void *)c->variable);
-        free((void *)c->property);
-        free((void *)c->op);
+        CBM_FREE((void *)c->variable);
+        CBM_FREE((void *)c->property);
+        CBM_FREE((void *)c->op);
         return NULL;
     }
     int vcap = CYP_INIT_CAP8;
     int vn = 0;
-    const char **vals = malloc(vcap * sizeof(const char *));
+    const char **vals = CBM_MALLOC(vcap * sizeof(const char *));
     while (!check(p, TOK_RBRACKET) && !check(p, TOK_EOF)) {
         if (vn > 0) {
             match(p, TOK_COMMA);
@@ -871,8 +872,8 @@ static cbm_expr_t *parse_condition_expr(parser_t *p) {
     c.op = parse_comparison_op(p);
     if (!c.op) {
         snprintf(p->error, sizeof(p->error), "unexpected operator at pos %d", peek(p)->pos);
-        free((void *)c.variable);
-        free((void *)c.property);
+        CBM_FREE((void *)c.variable);
+        CBM_FREE((void *)c.property);
         return NULL;
     }
 
@@ -887,9 +888,9 @@ static cbm_expr_t *parse_condition_expr(parser_t *p) {
         c.value = heap_strdup("false");
     } else {
         snprintf(p->error, sizeof(p->error), "expected value at pos %d", peek(p)->pos);
-        free((void *)c.variable);
-        free((void *)c.property);
-        free((void *)c.op);
+        CBM_FREE((void *)c.variable);
+        CBM_FREE((void *)c.property);
+        CBM_FREE((void *)c.op);
         return NULL;
     }
 
@@ -976,10 +977,10 @@ static int parse_where(parser_t *p, cbm_where_clause_t **out) {
         return 0;
     }
 
-    cbm_where_clause_t *w = calloc(CBM_ALLOC_ONE, sizeof(cbm_where_clause_t));
+    cbm_where_clause_t *w = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_where_clause_t));
     w->root = parse_or_expr(p);
     if (!w->root && p->error[0]) {
-        free(w);
+        CBM_FREE(w);
         return CBM_NOT_FOUND;
     }
 
@@ -1061,9 +1062,9 @@ static const char *parse_value_literal(parser_t *p) {
 /* Parse CASE WHEN ... THEN ... [ELSE ...] END */
 static cbm_case_expr_t *parse_case_expr(parser_t *p) {
     /* CASE already consumed */
-    cbm_case_expr_t *kase = calloc(CBM_ALLOC_ONE, sizeof(cbm_case_expr_t));
+    cbm_case_expr_t *kase = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_case_expr_t));
     int bcap = CYP_INIT_CAP4;
-    kase->branches = malloc(bcap * sizeof(cbm_case_branch_t));
+    kase->branches = CBM_MALLOC(bcap * sizeof(cbm_case_branch_t));
 
     while (check(p, TOK_WHEN)) {
         advance(p);
@@ -1225,9 +1226,9 @@ static int parse_return_or_with(parser_t *p, cbm_return_clause_t **out, bool is_
         return 0;
     }
 
-    cbm_return_clause_t *r = calloc(CBM_ALLOC_ONE, sizeof(cbm_return_clause_t));
+    cbm_return_clause_t *r = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_return_clause_t));
     int cap = CYP_INIT_CAP8;
-    r->items = malloc(cap * sizeof(cbm_return_item_t));
+    r->items = CBM_MALLOC(cap * sizeof(cbm_return_item_t));
 
     r->distinct = match(p, TOK_DISTINCT);
 
@@ -1245,8 +1246,8 @@ static int parse_return_or_with(parser_t *p, cbm_return_clause_t **out, bool is_
 
         cbm_return_item_t item = {0};
         if (parse_return_item(p, &item) < 0) {
-            free(r->items);
-            free(r);
+            CBM_FREE(r->items);
+            CBM_FREE(r);
             return CBM_NOT_FOUND;
         }
 
@@ -1294,8 +1295,8 @@ static int parse_match_pattern(parser_t *p, cbm_pattern_t *pat) {
     memset(pat, 0, sizeof(*pat));
     int node_cap = CYP_INIT_CAP4;
     int rel_cap = CYP_INIT_CAP4;
-    pat->nodes = malloc(node_cap * sizeof(cbm_node_pattern_t));
-    pat->rels = calloc(rel_cap, sizeof(cbm_rel_pattern_t));
+    pat->nodes = CBM_MALLOC(node_cap * sizeof(cbm_node_pattern_t));
+    pat->rels = CBM_CALLOC(rel_cap, sizeof(cbm_rel_pattern_t));
 
     if (parse_node(p, &pat->nodes[0]) < 0) {
         return CBM_NOT_FOUND;
@@ -1445,7 +1446,7 @@ int cbm_parse(const cbm_token_t *tokens, int token_count, // NOLINT(misc-no-recu
         return CBM_NOT_FOUND;
     }
 
-    cbm_query_t *q = calloc(CBM_ALLOC_ONE, sizeof(cbm_query_t));
+    cbm_query_t *q = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_query_t));
 
     if (check(&p, TOK_UNWIND)) {
         parse_unwind_clause(&p, q);
@@ -1463,8 +1464,8 @@ int cbm_parse(const cbm_token_t *tokens, int token_count, // NOLINT(misc-no-recu
     }
 
     int pat_cap = CYP_INIT_CAP4;
-    q->patterns = malloc(pat_cap * sizeof(cbm_pattern_t));
-    q->pattern_optional = malloc(pat_cap * sizeof(bool));
+    q->patterns = CBM_MALLOC(pat_cap * sizeof(cbm_pattern_t));
+    q->pattern_optional = CBM_MALLOC(pat_cap * sizeof(bool));
 
     if (parse_match_pattern(&p, &q->patterns[0]) < 0) {
         out->error = heap_strdup(p.error[0] ? p.error : "failed to parse pattern");
@@ -1501,7 +1502,7 @@ void cbm_parse_free(cbm_parse_result_t *r) {
         return;
     }
     cbm_query_free(r->query);
-    free(r->error);
+    CBM_FREE(r->error);
     memset(r, 0, sizeof(*r));
 }
 
@@ -1510,25 +1511,25 @@ void cbm_parse_free(cbm_parse_result_t *r) {
 static void free_pattern(cbm_pattern_t *pat) {
     for (int i = 0; i < pat->node_count; i++) {
         cbm_node_pattern_t *n = &pat->nodes[i];
-        free((void *)n->variable);
-        free((void *)n->label);
+        CBM_FREE((void *)n->variable);
+        CBM_FREE((void *)n->label);
         for (int j = 0; j < n->prop_count; j++) {
-            free((void *)n->props[j].key);
-            free((void *)n->props[j].value);
+            CBM_FREE((void *)n->props[j].key);
+            CBM_FREE((void *)n->props[j].value);
         }
-        free(n->props);
+        CBM_FREE(n->props);
     }
-    free(pat->nodes);
+    CBM_FREE(pat->nodes);
     for (int i = 0; i < pat->rel_count; i++) {
         cbm_rel_pattern_t *r = &pat->rels[i];
-        free((void *)r->variable);
+        CBM_FREE((void *)r->variable);
         for (int j = 0; j < r->type_count; j++) {
-            free((void *)r->types[j]);
+            CBM_FREE((void *)r->types[j]);
         }
-        free(r->types);
-        free((void *)r->direction);
+        CBM_FREE(r->types);
+        CBM_FREE((void *)r->direction);
     }
-    free(pat->rels);
+    CBM_FREE(pat->rels);
 }
 
 static void free_where(cbm_where_clause_t *w) {
@@ -1537,18 +1538,18 @@ static void free_where(cbm_where_clause_t *w) {
     }
     expr_free(w->root);
     for (int i = 0; i < w->count; i++) {
-        free((void *)w->conditions[i].variable);
-        free((void *)w->conditions[i].property);
-        free((void *)w->conditions[i].op);
-        free((void *)w->conditions[i].value);
+        CBM_FREE((void *)w->conditions[i].variable);
+        CBM_FREE((void *)w->conditions[i].property);
+        CBM_FREE((void *)w->conditions[i].op);
+        CBM_FREE((void *)w->conditions[i].value);
         for (int j = 0; j < w->conditions[i].in_value_count; j++) {
-            free((void *)w->conditions[i].in_values[j]);
+            CBM_FREE((void *)w->conditions[i].in_values[j]);
         }
-        free(w->conditions[i].in_values);
+        CBM_FREE(w->conditions[i].in_values);
     }
-    free(w->conditions);
-    free((void *)w->op);
-    free(w);
+    CBM_FREE(w->conditions);
+    CBM_FREE((void *)w->op);
+    CBM_FREE(w);
 }
 
 static void free_case_expr(cbm_case_expr_t *k) {
@@ -1557,11 +1558,11 @@ static void free_case_expr(cbm_case_expr_t *k) {
     }
     for (int i = 0; i < k->branch_count; i++) {
         expr_free(k->branches[i].when_expr);
-        free((void *)k->branches[i].then_val);
+        CBM_FREE((void *)k->branches[i].then_val);
     }
-    free(k->branches);
-    free((void *)k->else_val);
-    free(k);
+    CBM_FREE(k->branches);
+    CBM_FREE((void *)k->else_val);
+    CBM_FREE(k);
 }
 
 static void free_return_clause(cbm_return_clause_t *r) {
@@ -1569,16 +1570,16 @@ static void free_return_clause(cbm_return_clause_t *r) {
         return;
     }
     for (int i = 0; i < r->count; i++) {
-        free((void *)r->items[i].variable);
-        free((void *)r->items[i].property);
-        free((void *)r->items[i].alias);
-        free((void *)r->items[i].func);
+        CBM_FREE((void *)r->items[i].variable);
+        CBM_FREE((void *)r->items[i].property);
+        CBM_FREE((void *)r->items[i].alias);
+        CBM_FREE((void *)r->items[i].func);
         free_case_expr(r->items[i].kase);
     }
-    free(r->items);
-    free((void *)r->order_by);
-    free((void *)r->order_dir);
-    free(r);
+    CBM_FREE(r->items);
+    CBM_FREE((void *)r->order_by);
+    CBM_FREE((void *)r->order_dir);
+    CBM_FREE(r);
 }
 
 void cbm_query_free(cbm_query_t *q) {
@@ -1587,15 +1588,15 @@ void cbm_query_free(cbm_query_t *q) {
         for (int i = 0; i < q->pattern_count; i++) {
             free_pattern(&q->patterns[i]);
         }
-        free(q->patterns);
-        free(q->pattern_optional);
+        CBM_FREE(q->patterns);
+        CBM_FREE(q->pattern_optional);
         free_where(q->where);
         free_where(q->post_with_where);
         free_return_clause(q->with_clause);
         free_return_clause(q->ret);
-        free((void *)q->unwind_expr);
-        free((void *)q->unwind_alias);
-        free(q);
+        CBM_FREE((void *)q->unwind_expr);
+        CBM_FREE((void *)q->unwind_alias);
+        CBM_FREE(q);
         q = next;
     }
 }
@@ -1766,12 +1767,12 @@ static void node_fields_free(cbm_node_t *n) {
     if (!n) {
         return;
     }
-    free((void *)n->project);
-    free((void *)n->label);
-    free((void *)n->name);
-    free((void *)n->qualified_name);
-    free((void *)n->file_path);
-    free((void *)n->properties_json);
+    CBM_FREE((void *)n->project);
+    CBM_FREE((void *)n->label);
+    CBM_FREE((void *)n->name);
+    CBM_FREE((void *)n->qualified_name);
+    CBM_FREE((void *)n->file_path);
+    CBM_FREE((void *)n->properties_json);
 }
 
 /* Deep copy an edge (binding owns the strings) */
@@ -1783,9 +1784,9 @@ static void edge_deep_copy(cbm_edge_t *dst, const cbm_edge_t *src) {
 }
 
 static void edge_fields_free(cbm_edge_t *e) {
-    free((void *)e->project);
-    free((void *)e->type);
-    free((void *)e->properties_json);
+    CBM_FREE((void *)e->project);
+    CBM_FREE((void *)e->type);
+    CBM_FREE((void *)e->properties_json);
 }
 
 /* Set an edge variable in a binding */
@@ -2016,11 +2017,11 @@ typedef struct {
 static void rb_init(result_builder_t *rb) {
     memset(rb, 0, sizeof(*rb));
     rb->row_cap = CBM_SZ_32;
-    rb->rows = malloc(rb->row_cap * sizeof(const char **));
+    rb->rows = CBM_MALLOC(rb->row_cap * sizeof(const char **));
 }
 
 static void rb_set_columns(result_builder_t *rb, const char **cols, int count) {
-    rb->columns = malloc((count > 0 ? (size_t)count : SKIP_ONE) * sizeof(const char *));
+    rb->columns = CBM_MALLOC((count > 0 ? (size_t)count : SKIP_ONE) * sizeof(const char *));
     for (int i = 0; i < count; i++) {
         rb->columns[i] = heap_strdup(cols[i]);
     }
@@ -2033,7 +2034,7 @@ static void rb_add_row(result_builder_t *rb, const char **values) {
         rb->rows = safe_realloc(rb->rows, rb->row_cap * sizeof(const char **));
     }
     const char **row =
-        malloc((rb->col_count > 0 ? (size_t)rb->col_count : SKIP_ONE) * sizeof(const char *));
+        CBM_MALLOC((rb->col_count > 0 ? (size_t)rb->col_count : SKIP_ONE) * sizeof(const char *));
     for (int i = 0; i < rb->col_count; i++) {
         row[i] = values[i] ? heap_strdup(values[i]) : heap_strdup("");
     }
@@ -2132,7 +2133,7 @@ static void scan_pattern_nodes(cbm_store_t *store, const char *project, int max_
         cbm_search_output_t sout = {0};
         cbm_store_search(store, &params, &sout);
         *out_count = sout.count;
-        *out_nodes = malloc(sout.count * sizeof(cbm_node_t));
+        *out_nodes = CBM_MALLOC(sout.count * sizeof(cbm_node_t));
         for (int i = 0; i < sout.count; i++) {
             (*out_nodes)[i] = sout.results[i].node;
             sout.results[i].node.name = NULL;
@@ -2292,7 +2293,7 @@ static void expand_pattern_rels(cbm_store_t *store, cbm_pattern_t *pat, binding_
         bool is_variable_length = (rel->min_hops != SKIP_ONE || rel->max_hops != SKIP_ONE);
 
         binding_t *new_bindings =
-            malloc(((*bind_cap * CYP_GROWTH_10) + SKIP_ONE) * sizeof(binding_t));
+            CBM_MALLOC(((*bind_cap * CYP_GROWTH_10) + SKIP_ONE) * sizeof(binding_t));
         int new_count = 0;
 
         for (int bi = 0; bi < *bind_count; bi++) {
@@ -2325,7 +2326,7 @@ static void expand_pattern_rels(cbm_store_t *store, cbm_pattern_t *pat, binding_
         for (int bi = 0; bi < *bind_count; bi++) {
             binding_free(&(*bindings)[bi]);
         }
-        free(*bindings);
+        CBM_FREE(*bindings);
         *bindings = new_bindings;
         *bind_count = new_count;
         *var_name = to_var;
@@ -2404,18 +2405,18 @@ static void rb_apply_skip_limit(result_builder_t *rb, int skip_n, int limit) {
     if (skip_n > 0 && skip_n < rb->row_count) {
         for (int i = 0; i < skip_n; i++) {
             for (int c = 0; c < rb->col_count; c++) {
-                free((void *)rb->rows[i][c]);
+                CBM_FREE((void *)rb->rows[i][c]);
             }
-            free(rb->rows[i]);
+            CBM_FREE(rb->rows[i]);
         }
         memmove(rb->rows, rb->rows + skip_n, (rb->row_count - skip_n) * sizeof(const char **));
         rb->row_count -= skip_n;
     } else if (skip_n >= rb->row_count) {
         for (int i = 0; i < rb->row_count; i++) {
             for (int c = 0; c < rb->col_count; c++) {
-                free((void *)rb->rows[i][c]);
+                CBM_FREE((void *)rb->rows[i][c]);
             }
-            free(rb->rows[i]);
+            CBM_FREE(rb->rows[i]);
         }
         rb->row_count = 0;
     }
@@ -2423,9 +2424,9 @@ static void rb_apply_skip_limit(result_builder_t *rb, int skip_n, int limit) {
     if (limit > 0 && rb->row_count > limit) {
         for (int i = limit; i < rb->row_count; i++) {
             for (int c = 0; c < rb->col_count; c++) {
-                free((void *)rb->rows[i][c]);
+                CBM_FREE((void *)rb->rows[i][c]);
             }
-            free(rb->rows[i]);
+            CBM_FREE(rb->rows[i]);
         }
         rb->row_count = limit;
     }
@@ -2456,9 +2457,9 @@ static void rb_apply_distinct(result_builder_t *rb) {
             kept++;
         } else {
             for (int c = 0; c < rb->col_count; c++) {
-                free((void *)rb->rows[i][c]);
+                CBM_FREE((void *)rb->rows[i][c]);
             }
-            free(rb->rows[i]);
+            CBM_FREE(rb->rows[i]);
         }
     }
     rb->row_count = kept;
@@ -2467,15 +2468,15 @@ static void rb_apply_distinct(result_builder_t *rb) {
 static void rb_free(result_builder_t *rb) {
     for (int i = 0; i < rb->row_count; i++) {
         for (int c = 0; c < rb->col_count; c++) {
-            free((void *)rb->rows[i][c]);
+            CBM_FREE((void *)rb->rows[i][c]);
         }
-        free(rb->rows[i]);
+        CBM_FREE(rb->rows[i]);
     }
-    free(rb->rows);
+    CBM_FREE(rb->rows);
     for (int i = 0; i < rb->col_count; i++) {
-        free((void *)rb->columns[i]);
+        CBM_FREE((void *)rb->columns[i]);
     }
-    free(rb->columns);
+    CBM_FREE(rb->columns);
 }
 
 /* ── Get projection value for a binding + return item ─────────── */
@@ -2606,11 +2607,11 @@ static int with_agg_find_or_create(with_agg_t **aggs, int *agg_cnt, int *agg_cap
     }
     int found = (*agg_cnt)++;
     snprintf((*aggs)[found].group_key, sizeof((*aggs)[found].group_key), "%s", key);
-    (*aggs)[found].group_vals = calloc(wc->count, sizeof(const char *));
-    (*aggs)[found].sums = calloc(wc->count, sizeof(double));
-    (*aggs)[found].counts = calloc(wc->count, sizeof(int));
-    (*aggs)[found].mins = calloc(wc->count, sizeof(double));
-    (*aggs)[found].maxs = calloc(wc->count, sizeof(double));
+    (*aggs)[found].group_vals = CBM_CALLOC(wc->count, sizeof(const char *));
+    (*aggs)[found].sums = CBM_CALLOC(wc->count, sizeof(double));
+    (*aggs)[found].counts = CBM_CALLOC(wc->count, sizeof(int));
+    (*aggs)[found].mins = CBM_CALLOC(wc->count, sizeof(double));
+    (*aggs)[found].maxs = CBM_CALLOC(wc->count, sizeof(double));
     for (int ci = 0; ci < wc->count; ci++) {
         (*aggs)[found].mins[ci] = CYP_DBL_MAX;
         (*aggs)[found].maxs[ci] = -CYP_DBL_MAX;
@@ -2674,22 +2675,22 @@ static void with_add_vbinding_var(binding_t *vb, const char *alias, const char *
 static void with_agg_free(with_agg_t *aggs, int agg_cnt, int item_count) {
     for (int a = 0; a < agg_cnt; a++) {
         for (int ci = 0; ci < item_count; ci++) {
-            free((void *)aggs[a].group_vals[ci]);
+            CBM_FREE((void *)aggs[a].group_vals[ci]);
         }
-        free(aggs[a].group_vals);
-        free(aggs[a].sums);
-        free(aggs[a].counts);
-        free(aggs[a].mins);
-        free(aggs[a].maxs);
+        CBM_FREE(aggs[a].group_vals);
+        CBM_FREE(aggs[a].sums);
+        CBM_FREE(aggs[a].counts);
+        CBM_FREE(aggs[a].mins);
+        CBM_FREE(aggs[a].maxs);
     }
-    free(aggs);
+    CBM_FREE(aggs);
 }
 
 /* Execute WITH aggregation path */
 static void execute_with_aggregate(cbm_return_clause_t *wc, binding_t *bindings, int bind_count,
                                    binding_t **vbindings, int *vcount) {
     int agg_cap = CBM_SZ_256;
-    with_agg_t *aggs = calloc(agg_cap, sizeof(with_agg_t));
+    with_agg_t *aggs = CBM_CALLOC(agg_cap, sizeof(with_agg_t));
     int agg_cnt = 0;
 
     for (int bi = 0; bi < bind_count; bi++) {
@@ -2764,7 +2765,7 @@ static void execute_with_clause(cbm_query_t *q, binding_t **bindings_ptr, int *b
     binding_t *bindings = *bindings_ptr;
     int bind_count = *bind_count_ptr;
 
-    binding_t *vbindings = malloc((bind_count + SKIP_ONE) * sizeof(binding_t));
+    binding_t *vbindings = CBM_MALLOC((bind_count + SKIP_ONE) * sizeof(binding_t));
     int vcount = 0;
 
     bool has_agg = false;
@@ -2786,7 +2787,7 @@ static void execute_with_clause(cbm_query_t *q, binding_t **bindings_ptr, int *b
     for (int bi = 0; bi < bind_count; bi++) {
         binding_free(&bindings[bi]);
     }
-    free(bindings);
+    CBM_FREE(bindings);
 
     if (q->post_with_where) {
         filter_bindings_where(q->post_with_where, vbindings, &vcount);
@@ -2834,7 +2835,7 @@ static void build_star_columns(result_builder_t *rb, const char **vars, int vc) 
     }
     rb_set_columns(rb, col_names, col_n);
     for (int i = 0; i < col_n; i++) {
-        free((void *)col_names[i]);
+        CBM_FREE((void *)col_names[i]);
     }
 }
 
@@ -2928,13 +2929,13 @@ typedef struct {
 static void ret_agg_init_group(ret_agg_entry_t *entry, const char *key, int item_count,
                                const char **vals) {
     snprintf(entry->group_key, sizeof(entry->group_key), "%s", key);
-    entry->group_vals = calloc(item_count, sizeof(const char *));
-    entry->sums = calloc(item_count, sizeof(double));
-    entry->counts = calloc(item_count, sizeof(int));
-    entry->mins = malloc(item_count * sizeof(double));
-    entry->maxs = malloc(item_count * sizeof(double));
-    entry->collect_lists = calloc(item_count, sizeof(char **));
-    entry->collect_counts = calloc(item_count, sizeof(int));
+    entry->group_vals = CBM_CALLOC(item_count, sizeof(const char *));
+    entry->sums = CBM_CALLOC(item_count, sizeof(double));
+    entry->counts = CBM_CALLOC(item_count, sizeof(int));
+    entry->mins = CBM_MALLOC(item_count * sizeof(double));
+    entry->maxs = CBM_MALLOC(item_count * sizeof(double));
+    entry->collect_lists = CBM_CALLOC(item_count, sizeof(char **));
+    entry->collect_counts = CBM_CALLOC(item_count, sizeof(int));
     for (int ci = 0; ci < item_count; ci++) {
         entry->mins[ci] = CYP_DBL_MAX;
         entry->maxs[ci] = -CYP_DBL_MAX;
@@ -2971,21 +2972,21 @@ static void ret_agg_accumulate(ret_agg_entry_t *entry, cbm_return_clause_t *ret,
 static void ret_agg_free(ret_agg_entry_t *aggs, int agg_count, int item_count) {
     for (int a = 0; a < agg_count; a++) {
         for (int ci = 0; ci < item_count; ci++) {
-            free((void *)aggs[a].group_vals[ci]);
+            CBM_FREE((void *)aggs[a].group_vals[ci]);
             for (int j = 0; j < aggs[a].collect_counts[ci]; j++) {
-                free(aggs[a].collect_lists[ci][j]);
+                CBM_FREE(aggs[a].collect_lists[ci][j]);
             }
-            free(aggs[a].collect_lists[ci]);
+            CBM_FREE(aggs[a].collect_lists[ci]);
         }
-        free(aggs[a].group_vals);
-        free(aggs[a].sums);
-        free(aggs[a].counts);
-        free(aggs[a].mins);
-        free(aggs[a].maxs);
-        free(aggs[a].collect_lists);
-        free(aggs[a].collect_counts);
+        CBM_FREE(aggs[a].group_vals);
+        CBM_FREE(aggs[a].sums);
+        CBM_FREE(aggs[a].counts);
+        CBM_FREE(aggs[a].mins);
+        CBM_FREE(aggs[a].maxs);
+        CBM_FREE(aggs[a].collect_lists);
+        CBM_FREE(aggs[a].collect_counts);
     }
-    free(aggs);
+    CBM_FREE(aggs);
 }
 
 /* Execute RETURN with aggregation */
@@ -3027,7 +3028,7 @@ static void ret_agg_emit_row(cbm_return_clause_t *ret, ret_agg_entry_t *agg, res
 static void execute_return_agg(cbm_return_clause_t *ret, binding_t *bindings, int bind_count,
                                result_builder_t *rb) {
     int agg_cap = CBM_SZ_256;
-    ret_agg_entry_t *aggs = calloc(agg_cap, sizeof(ret_agg_entry_t));
+    ret_agg_entry_t *aggs = CBM_CALLOC(agg_cap, sizeof(ret_agg_entry_t));
     int agg_count = 0;
 
     for (int bi = 0; bi < bind_count; bi++) {
@@ -3084,7 +3085,7 @@ static void build_return_columns(result_builder_t *rb, cbm_return_clause_t *ret)
     for (int i = 0; i < ret->count && i < CBM_SZ_32; i++) {
         cbm_return_item_t *item = &ret->items[i];
         if (!item->alias && (item->func || (!item->kase && item->property))) {
-            free((void *)col_names[i]);
+            CBM_FREE((void *)col_names[i]);
         }
     }
 }
@@ -3122,7 +3123,7 @@ static void build_default_columns(result_builder_t *rb, const char **vars, int v
     }
     rb_set_columns(rb, col_names, col_n);
     for (int i = 0; i < col_n; i++) {
-        free((void *)col_names[i]);
+        CBM_FREE((void *)col_names[i]);
     }
 }
 
@@ -3153,7 +3154,7 @@ static void execute_default_projection(cbm_pattern_t *pat0, binding_t *bindings,
 /* Cross-join node-only pattern into existing bindings */
 static void cross_join_nodes(binding_t **bindings, int *bind_count, cbm_node_t *extra_nodes,
                              int extra_count, const char *nvar, bool opt) {
-    binding_t *new_bindings = malloc(((*bind_count * extra_count) + SKIP_ONE) * sizeof(binding_t));
+    binding_t *new_bindings = CBM_MALLOC(((*bind_count * extra_count) + SKIP_ONE) * sizeof(binding_t));
     int new_count = 0;
     for (int bi = 0; bi < *bind_count; bi++) {
         for (int ni = 0; ni < extra_count; ni++) {
@@ -3171,7 +3172,7 @@ static void cross_join_nodes(binding_t **bindings, int *bind_count, cbm_node_t *
     for (int bi = 0; bi < *bind_count; bi++) {
         binding_free(&(*bindings)[bi]);
     }
-    free(*bindings);
+    CBM_FREE(*bindings);
     *bindings = new_bindings;
     *bind_count = new_count;
 }
@@ -3181,14 +3182,14 @@ static void cross_join_with_rels(cbm_store_t *store, cbm_pattern_t *patn, bindin
                                  int *bind_count, cbm_node_t *extra_nodes, int extra_count,
                                  const char *nvar, bool opt) {
     binding_t *new_bindings =
-        malloc(((*bind_count * extra_count * CYP_GROWTH_10) + SKIP_ONE) * sizeof(binding_t));
+        CBM_MALLOC(((*bind_count * extra_count * CYP_GROWTH_10) + SKIP_ONE) * sizeof(binding_t));
     int new_count = 0;
     for (int bi = 0; bi < *bind_count; bi++) {
         for (int ni = 0; ni < extra_count; ni++) {
             binding_t nb = {0};
             binding_copy(&nb, &(*bindings)[bi]);
             binding_set(&nb, nvar, &extra_nodes[ni]);
-            binding_t *tmp = malloc(PAIR_LEN * sizeof(binding_t));
+            binding_t *tmp = CBM_MALLOC(PAIR_LEN * sizeof(binding_t));
             tmp[0] = nb;
             int tc = SKIP_ONE;
             int tcap = SKIP_ONE;
@@ -3197,7 +3198,7 @@ static void cross_join_with_rels(cbm_store_t *store, cbm_pattern_t *patn, bindin
             for (int ti = 0; ti < tc; ti++) {
                 new_bindings[new_count++] = tmp[ti];
             }
-            free(tmp);
+            CBM_FREE(tmp);
         }
         if (opt && extra_count == 0) {
             binding_t nb = {0};
@@ -3208,7 +3209,7 @@ static void cross_join_with_rels(cbm_store_t *store, cbm_pattern_t *patn, bindin
     for (int bi = 0; bi < *bind_count; bi++) {
         binding_free(&(*bindings)[bi]);
     }
-    free(*bindings);
+    CBM_FREE(*bindings);
     *bindings = new_bindings;
     *bind_count = new_count;
 }
@@ -3282,7 +3283,7 @@ static int execute_single(cbm_store_t *store, cbm_query_t *q, const char *projec
 
     /* Build initial bindings with early WHERE */
     int bind_cap = scan_count > 0 ? scan_count : SKIP_ONE;
-    binding_t *bindings = malloc((bind_cap + SKIP_ONE) * sizeof(binding_t));
+    binding_t *bindings = CBM_MALLOC((bind_cap + SKIP_ONE) * sizeof(binding_t));
     int bind_count = 0;
     const char *var_name = pat0->nodes[0].variable ? pat0->nodes[0].variable : "_n0";
 
@@ -3323,7 +3324,7 @@ static int execute_single(cbm_store_t *store, cbm_query_t *q, const char *projec
     for (int bi = 0; bi < bind_count; bi++) {
         binding_free(&bindings[bi]);
     }
-    free(bindings);
+    CBM_FREE(bindings);
     cbm_store_free_nodes(scanned, scan_count);
     return 0;
 }
@@ -3398,16 +3399,16 @@ void cbm_cypher_result_free(cbm_cypher_result_t *r) {
         return;
     }
     for (int i = 0; i < r->col_count; i++) {
-        free((void *)r->columns[i]);
+        CBM_FREE((void *)r->columns[i]);
     }
-    free(r->columns);
+    CBM_FREE(r->columns);
     for (int i = 0; i < r->row_count; i++) {
         for (int j = 0; j < r->col_count; j++) {
-            free((void *)r->rows[i][j]);
+            CBM_FREE((void *)r->rows[i][j]);
         }
-        free(r->rows[i]);
+        CBM_FREE(r->rows[i]);
     }
-    free(r->rows);
-    free(r->error);
+    CBM_FREE(r->rows);
+    CBM_FREE(r->error);
     memset(r, 0, sizeof(*r));
 }

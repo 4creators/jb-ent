@@ -4,6 +4,7 @@
 #include "test_framework.h"
 #include "../src/foundation/arena.h"
 #include <stdint.h>
+#include "foundation/allocator.h"
 
 TEST(arena_init_default) {
     CBMArena a;
@@ -335,7 +336,7 @@ TEST(arena_double_destroy) {
 TEST(arena_calloc_zero) {
     CBMArena a;
     cbm_arena_init(&a);
-    /* calloc(0) delegates to alloc(0) which returns NULL */
+    /* CBM_CALLOC(0) delegates to alloc(0) which returns NULL */
     void *p = cbm_arena_calloc(&a, 0);
     ASSERT_NULL(p);
     cbm_arena_destroy(&a);

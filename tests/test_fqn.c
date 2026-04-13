@@ -9,6 +9,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* ── Helper: assert FQN result and free ────────────────────────── */
 
@@ -17,7 +18,7 @@
         char *_r = (expr);            \
         ASSERT_NOT_NULL(_r);          \
         ASSERT_STR_EQ(_r, expected);  \
-        free(_r);                     \
+        CBM_FREE(_r);                     \
     } while (0)
 
 /* ================================================================

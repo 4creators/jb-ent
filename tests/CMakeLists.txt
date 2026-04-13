@@ -5,6 +5,13 @@ add_executable(run_test_fqn
     ../src/foundation/platform.c
     ../src/foundation/str_util.c
     ../src/foundation/arena.c
+    ../src/foundation/mem.c
+    ../src/foundation/log.c
+    ../src/foundation/system_info.c
+    ../src/foundation/compat.c
 )
 
-target_link_libraries(run_test_fqn PRIVATE xxHash::xxhash)
+target_link_libraries(run_test_fqn PRIVATE xxHash::xxhash mimalloc)
+if(WIN32)
+    target_link_libraries(run_test_fqn PRIVATE ws2_32 psapi bcrypt crypt32 winhttp rpcrt4)
+endif()

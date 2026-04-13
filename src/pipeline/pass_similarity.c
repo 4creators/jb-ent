@@ -29,6 +29,7 @@ enum {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 enum { FP_KEY_PREFIX_LEN = 6, MIN_FP_ENTRIES = 2 }; /* strlen("\"fp\":\"") */
 
@@ -112,7 +113,7 @@ static int collect_fp_entries(cbm_gbuf_t *gbuf, fp_entry_t **out_entries) {
             }
             if (count >= cap) {
                 int new_cap = cap < FP_ENTRY_INIT_CAP ? FP_ENTRY_INIT_CAP : cap * FP_ENTRY_GROW;
-                fp_entry_t *grown = realloc(entries, (size_t)new_cap * sizeof(fp_entry_t));
+                fp_entry_t *grown = CBM_REALLOC(entries, (size_t)new_cap * sizeof(fp_entry_t));
                 if (!grown) {
                     break;
                 }
@@ -151,7 +152,7 @@ static void sim_edge_buf_push(sim_edge_buf_t *buf, int64_t src, int64_t tgt, dou
                               bool same_file) {
     if (buf->count >= buf->cap) {
         int nc = buf->cap < SIM_EDGE_INIT_CAP ? SIM_EDGE_INIT_CAP : buf->cap * SIM_EDGE_GROW;
-        sim_deferred_edge_t *grown = realloc(buf->edges, (size_t)nc * sizeof(sim_deferred_edge_t));
+        sim_deferred_edge_t *grown = CBM_REALLOC(buf->edges, (size_t)nc * sizeof(sim_deferred_edge_t));
         if (!grown) {
             return;
         }
@@ -178,7 +179,7 @@ static void sim_query_worker(int worker_id, void *ctx_ptr) {
     sim_edge_buf_t *my_buf = &sc->worker_bufs[worker_id];
 
     /* Thread-local candidate buffer (heap-allocated) */
-    const cbm_lsh_entry_t **cands = malloc(sizeof(const cbm_lsh_entry_t *) * SIM_CAND_CAP);
+    const cbm_lsh_entry_t **cands = CBM_MALLOC(sizeof(const cbm_lsh_entry_t *) * SIM_CAND_CAP);
     if (!cands) {
         return;
     }
@@ -243,9 +244,9 @@ static int merge_sim_edges(cbm_gbuf_t *gbuf, sim_edge_buf_t *worker_bufs, int wo
             cbm_gbuf_insert_edge(gbuf, de->source_id, de->target_id, "SIMILAR_TO", props);
             total++;
         }
-        free(worker_bufs[w].edges);
+        CBM_FREE(worker_bufs[w].edges);
     }
-    free(worker_bufs);
+    CBM_FREE(worker_bufs);
     return total;
 }
 
@@ -265,7 +266,7 @@ int cbm_pipeline_pass_similarity(cbm_pipeline_ctx_t *ctx) {
     cbm_log_info("pass.similarity.collected", "nodes_with_fp", itoa_log(entry_count));
 
     if (entry_count < MIN_FP_ENTRIES) {
-        free(entries);
+        CBM_FREE(entries);
         cbm_log_info("pass.done", "pass", "similarity", "edges", "0");
         return 0;
     }
@@ -273,9 +274,9 @@ int cbm_pipeline_pass_similarity(cbm_pipeline_ctx_t *ctx) {
     /* Phase 2: Build LSH index (sequential — cbm_lsh_insert mutates shared state) */
     CBM_PROF_START(t_lsh_build);
     cbm_lsh_index_t *lsh = cbm_lsh_new();
-    cbm_lsh_entry_t *lsh_entries = malloc((size_t)entry_count * sizeof(cbm_lsh_entry_t));
+    cbm_lsh_entry_t *lsh_entries = CBM_MALLOC((size_t)entry_count * sizeof(cbm_lsh_entry_t));
     if (!lsh_entries) {
-        free(entries);
+        CBM_FREE(entries);
         cbm_lsh_free(lsh);
         return CBM_NOT_FOUND;
     }
@@ -296,9 +297,9 @@ int cbm_pipeline_pass_similarity(cbm_pipeline_ctx_t *ctx) {
      * in its own deferred buffer. Shared edge_counts is atomic.
      * Final merge into gbuf is sequential (gbuf not thread-safe). */
     CBM_PROF_START(t_query_emit);
-    _Atomic int *edge_counts = calloc((size_t)entry_count, sizeof(_Atomic int));
+    _Atomic int *edge_counts = CBM_CALLOC((size_t)entry_count, sizeof(_Atomic int));
     int worker_count = cbm_default_worker_count(false);
-    sim_edge_buf_t *worker_bufs = calloc((size_t)worker_count, sizeof(sim_edge_buf_t));
+    sim_edge_buf_t *worker_bufs = CBM_CALLOC((size_t)worker_count, sizeof(sim_edge_buf_t));
 
     {
         sim_query_ctx_t sc = {
@@ -320,9 +321,9 @@ int cbm_pipeline_pass_similarity(cbm_pipeline_ctx_t *ctx) {
 
     cbm_log_info("pass.done", "pass", "similarity", "edges", itoa_log(total_edges));
 
-    free(edge_counts);
-    free(lsh_entries);
-    free(entries);
+    CBM_FREE(edge_counts);
+    CBM_FREE(lsh_entries);
+    CBM_FREE(entries);
     cbm_lsh_free(lsh);
     return 0;
 }

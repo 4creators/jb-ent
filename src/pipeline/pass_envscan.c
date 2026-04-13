@@ -32,6 +32,7 @@ enum {
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "foundation/allocator.h"
 
 /* ── Regex patterns (compiled lazily) ──────────────────────────── */
 
@@ -401,7 +402,7 @@ int cbm_scan_project_env_urls(const char *root_path, cbm_env_binding_t *out, int
     compile_patterns();
 
     int count = 0;
-    char (*path_stack)[CBM_SZ_512] = malloc(sizeof(char[CBM_SZ_256][CBM_SZ_512]));
+    char (*path_stack)[CBM_SZ_512] = CBM_MALLOC(sizeof(char[CBM_SZ_256][CBM_SZ_512]));
     if (!path_stack) {
         return 0;
     }
@@ -426,6 +427,6 @@ int cbm_scan_project_env_urls(const char *root_path, cbm_env_binding_t *out, int
         }
         cbm_closedir(d);
     }
-    free(path_stack);
+    CBM_FREE(path_stack);
     return count;
 }

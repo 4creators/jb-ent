@@ -36,12 +36,7 @@ typedef SSIZE_T ssize_t;
 
 /* ── strdup / strndup ─────────────────────────────────────────── */
 #ifdef _WIN32
-#define cbm_strdup _strdup
-/* Implemented in compat.c */
-char *cbm_strndup(const char *s, size_t n);
 #else
-#define cbm_strdup strdup
-#define cbm_strndup strndup
 #endif
 
 /* ── getline (Windows lacks it) ───────────────────────────────── */
@@ -164,6 +159,7 @@ static inline int cbm_unsetenv(const char *name) {
 #ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
+#include "foundation/allocator.h"
 #define cbm_pipe(fds) _pipe(fds, 4096, _O_BINARY)
 #else
 #define cbm_pipe(fds) pipe(fds)

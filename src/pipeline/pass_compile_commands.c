@@ -16,12 +16,13 @@ enum { CC_FLAG_IDX = 1, CC_FLAG_SKIP = 2 };
 #include <string.h>
 #include <stdio.h>
 #include "yyjson/yyjson.h"
+#include "foundation/allocator.h"
 
 /* Emit the current token if non-empty. Returns updated count. */
 static int emit_token(char *current, int *clen, char **out, int count, int max_out) {
     if (*clen > 0 && count < max_out) {
         current[*clen] = '\0';
-        out[count++] = strdup(current);
+        out[count++] = CBM_STRDUP(current);
         *clen = 0;
     }
     return count;
@@ -64,17 +65,17 @@ static char *resolve_path(const char *path, const char *directory) {
 
     /* Absolute path */
     if (path[0] == '/') {
-        return strdup(path);
+        return CBM_STRDUP(path);
     }
 
     /* Relative — join with directory */
     if (directory && directory[0]) {
         char buf[CBM_SZ_4K];
         snprintf(buf, sizeof(buf), "%s/%s", directory, path);
-        return strdup(buf);
+        return CBM_STRDUP(buf);
     }
 
-    return strdup(path);
+    return CBM_STRDUP(path);
 }
 
 /* Try to consume a -I or -isystem include path flag. Returns true if consumed. */
@@ -112,18 +113,18 @@ static bool try_define_flag(cbm_compile_flags_t *f, const char **args, int argc,
         define = args[*i];
     }
     if (define && *define) {
-        f->defines[f->define_count++] = strdup(define);
+        f->defines[f->define_count++] = CBM_STRDUP(define);
     }
     return true;
 }
 
 cbm_compile_flags_t *cbm_extract_flags(const char **args, int argc, const char *directory) {
-    cbm_compile_flags_t *f = calloc(CBM_ALLOC_ONE, sizeof(*f));
+    cbm_compile_flags_t *f = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*f));
     if (!f) {
         return NULL;
     }
-    f->include_paths = calloc(argc, sizeof(char *));
-    f->defines = calloc(argc, sizeof(char *));
+    f->include_paths = CBM_CALLOC(argc, sizeof(char *));
+    f->defines = CBM_CALLOC(argc, sizeof(char *));
 
     for (int i = 0; i < argc; i++) {
         if (try_include_flag(f, args, argc, &i, directory)) {
@@ -144,14 +145,14 @@ void cbm_compile_flags_free(cbm_compile_flags_t *f) {
         return;
     }
     for (int i = 0; i < f->include_count; i++) {
-        free(f->include_paths[i]);
+        CBM_FREE(f->include_paths[i]);
     }
-    free(f->include_paths);
+    CBM_FREE(f->include_paths);
     for (int i = 0; i < f->define_count; i++) {
-        free(f->defines[i]);
+        CBM_FREE(f->defines[i]);
     }
-    free(f->defines);
-    free(f);
+    CBM_FREE(f->defines);
+    CBM_FREE(f);
 }
 
 /* Extract compiler flag args from either "arguments" array or "command" string. */
@@ -209,7 +210,7 @@ static int process_compile_entry(yyjson_val *entry, const char *repo_path, char 
 
     if (cmd_val && yyjson_is_str(cmd_val)) {
         for (int j = 0; j < flag_argc; j++) {
-            free(split_args[j]);
+            CBM_FREE(split_args[j]);
         }
     }
 
@@ -230,7 +231,7 @@ static int process_compile_entry(yyjson_val *entry, const char *repo_path, char 
         return 0;
     }
 
-    *out_path = strdup(abs_path + repo_len + SKIP_ONE);
+    *out_path = CBM_STRDUP(abs_path + repo_len + SKIP_ONE);
     *out_flag = f;
     return SKIP_ONE;
 }
@@ -260,11 +261,11 @@ int cbm_parse_compile_commands(const char *json_data, const char *repo_path, cha
         return 0;
     }
 
-    char **paths = calloc(arr_len, sizeof(char *));
-    cbm_compile_flags_t **flags = calloc(arr_len, sizeof(cbm_compile_flags_t *));
+    char **paths = CBM_CALLOC(arr_len, sizeof(char *));
+    cbm_compile_flags_t **flags = CBM_CALLOC(arr_len, sizeof(cbm_compile_flags_t *));
     if (!paths || !flags) {
-        free(paths);
-        free(flags);
+        CBM_FREE(paths);
+        CBM_FREE(flags);
         return 0;
     }
     int count = 0;

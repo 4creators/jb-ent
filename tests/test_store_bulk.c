@@ -22,6 +22,7 @@
 #ifndef _WIN32
 #include <unistd.h>
 #include <sys/wait.h>
+#include "foundation/allocator.h"
 #endif
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -36,7 +37,7 @@ static char *get_journal_mode(const char *db_path) {
     char *mode = NULL;
     if (sqlite3_prepare_v2(db, "PRAGMA journal_mode;", -1, &stmt, NULL) == SQLITE_OK) {
         if (sqlite3_step(stmt) == SQLITE_ROW)
-            mode = strdup((const char *)sqlite3_column_text(stmt, 0));
+            mode = CBM_STRDUP((const char *)sqlite3_column_text(stmt, 0));
         sqlite3_finalize(stmt);
     }
     sqlite3_close(db);
@@ -70,7 +71,7 @@ TEST(bulk_pragma_wal_invariant) {
     char *before = get_journal_mode(db_path);
     ASSERT_NOT_NULL(before);
     ASSERT_STR_EQ(before, "wal");
-    free(before);
+    CBM_FREE(before);
 
     int rc = cbm_store_begin_bulk(s);
     ASSERT_EQ(rc, CBM_STORE_OK);
@@ -78,7 +79,7 @@ TEST(bulk_pragma_wal_invariant) {
     char *after = get_journal_mode(db_path);
     ASSERT_NOT_NULL(after);
     ASSERT_STR_EQ(after, "wal"); /* FAILS with bug, PASSES with fix */
-    free(after);
+    CBM_FREE(after);
 
     cbm_store_end_bulk(s);
     cbm_store_close(s);
@@ -101,7 +102,7 @@ TEST(bulk_pragma_end_wal_invariant) {
     char *mode = get_journal_mode(db_path);
     ASSERT_NOT_NULL(mode);
     ASSERT_STR_EQ(mode, "wal");
-    free(mode);
+    CBM_FREE(mode);
 
     cbm_store_close(s);
     cleanup_db(db_path);

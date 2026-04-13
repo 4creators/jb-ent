@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "foundation/allocator.h"
 
 /* Helper: create a typical graph for search/traversal tests.
  *
@@ -670,7 +671,7 @@ TEST(store_deduplicate_hops) {
     }
     ASSERT_TRUE(found1);
 
-    free(result);
+    CBM_FREE(result);
     PASS();
 }
 
@@ -732,7 +733,7 @@ TEST(store_bfs_with_risk_labels) {
     ASSERT_EQ(summary.medium, 1);
     ASSERT_EQ(summary.total, 3);
 
-    free(deduped);
+    CBM_FREE(deduped);
     cbm_store_traverse_free(&result);
     cbm_store_close(s);
     PASS();
@@ -789,7 +790,7 @@ TEST(store_glob_to_like) {
         char *got = cbm_glob_to_like(tests[i].pattern);
         ASSERT_NOT_NULL(got);
         ASSERT_STR_EQ(got, tests[i].want);
-        free(got);
+        CBM_FREE(got);
     }
 
     /* NULL returns NULL */
@@ -808,27 +809,27 @@ TEST(store_extract_like_hints) {
     n = cbm_extract_like_hints(".*handler.*", hints, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(hints[0], "handler");
-    free(hints[0]);
+    CBM_FREE(hints[0]);
 
     /* Multiple segments: .*Order.*Handler.* → ["Order", "Handler"] */
     n = cbm_extract_like_hints(".*Order.*Handler.*", hints, 16);
     ASSERT_EQ(n, 2);
     ASSERT_STR_EQ(hints[0], "Order");
     ASSERT_STR_EQ(hints[1], "Handler");
-    free(hints[0]);
-    free(hints[1]);
+    CBM_FREE(hints[0]);
+    CBM_FREE(hints[1]);
 
     /* Plain literal: "handler" → ["handler"] */
     n = cbm_extract_like_hints("handler", hints, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(hints[0], "handler");
-    free(hints[0]);
+    CBM_FREE(hints[0]);
 
     /* Anchored: ^handleRequest$ → ["handleRequest"] */
     n = cbm_extract_like_hints("^handleRequest$", hints, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(hints[0], "handleRequest");
-    free(hints[0]);
+    CBM_FREE(hints[0]);
 
     /* Too generic: .* → no hints */
     n = cbm_extract_like_hints(".*", hints, 16);
@@ -842,7 +843,7 @@ TEST(store_extract_like_hints) {
     n = cbm_extract_like_hints(".*abc.*", hints, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(hints[0], "abc");
-    free(hints[0]);
+    CBM_FREE(hints[0]);
 
     /* Alternation: bail out */
     n = cbm_extract_like_hints(".*foo|.*bar", hints, 16);
@@ -860,8 +861,8 @@ TEST(store_extract_like_hints) {
     ASSERT_EQ(n, 2);
     ASSERT_STR_EQ(hints[0], "test_");
     ASSERT_STR_EQ(hints[1], "helper");
-    free(hints[0]);
-    free(hints[1]);
+    CBM_FREE(hints[0]);
+    CBM_FREE(hints[1]);
 
     /* NULL safety */
     n = cbm_extract_like_hints(NULL, hints, 16);
@@ -951,7 +952,7 @@ TEST(store_glob_to_like_empty) {
     char *got = cbm_glob_to_like("");
     ASSERT_NOT_NULL(got);
     ASSERT_STR_EQ(got, "");
-    free(got);
+    CBM_FREE(got);
     PASS();
 }
 
@@ -959,7 +960,7 @@ TEST(store_glob_to_like_only_star) {
     char *got = cbm_glob_to_like("*");
     ASSERT_NOT_NULL(got);
     ASSERT_STR_EQ(got, "%");
-    free(got);
+    CBM_FREE(got);
     PASS();
 }
 
@@ -968,7 +969,7 @@ TEST(store_glob_to_like_consecutive_doublestar) {
     char *got = cbm_glob_to_like("**/**");
     ASSERT_NOT_NULL(got);
     ASSERT_STR_EQ(got, "%%");
-    free(got);
+    CBM_FREE(got);
     PASS();
 }
 
@@ -977,7 +978,7 @@ TEST(store_glob_to_like_dot_and_brackets) {
     char *got = cbm_glob_to_like("src/[abc]/*.ts");
     ASSERT_NOT_NULL(got);
     ASSERT_STR_EQ(got, "src/[abc]/%.ts");
-    free(got);
+    CBM_FREE(got);
     PASS();
 }
 
@@ -986,7 +987,7 @@ TEST(store_glob_to_like_question_marks) {
     char *got = cbm_glob_to_like("f???.txt");
     ASSERT_NOT_NULL(got);
     ASSERT_STR_EQ(got, "f___.txt");
-    free(got);
+    CBM_FREE(got);
     PASS();
 }
 
@@ -1029,8 +1030,8 @@ TEST(store_extract_like_hints_complex_multi_segment) {
     ASSERT_EQ(n, 2);
     ASSERT_STR_EQ(hints[0], "Foo");
     ASSERT_STR_EQ(hints[1], "Bar");
-    free(hints[0]);
-    free(hints[1]);
+    CBM_FREE(hints[0]);
+    CBM_FREE(hints[1]);
     PASS();
 }
 
@@ -1041,8 +1042,8 @@ TEST(store_extract_like_hints_max_out_limit) {
     ASSERT_EQ(n, 2);
     ASSERT_STR_EQ(hints[0], "aaa");
     ASSERT_STR_EQ(hints[1], "bbb");
-    free(hints[0]);
-    free(hints[1]);
+    CBM_FREE(hints[0]);
+    CBM_FREE(hints[1]);
     PASS();
 }
 
@@ -1053,7 +1054,7 @@ TEST(store_extract_like_hints_escaped_chars) {
     int n = cbm_extract_like_hints("\\.handler", hints, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(hints[0], ".handler");
-    free(hints[0]);
+    CBM_FREE(hints[0]);
     PASS();
 }
 

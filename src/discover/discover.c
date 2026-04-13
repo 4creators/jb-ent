@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h> // strdup
 #include <sys/stat.h>
+#include "foundation/allocator.h"
 
 /* ── Hardcoded always-skip directories ───────────────────────────── */
 
@@ -212,7 +213,7 @@ static void fl_add(file_list_t *fl, const char *abs_path, const char *rel_path, 
                    int64_t size) {
     if (fl->count >= fl->capacity) {
         int new_cap = fl->capacity ? fl->capacity * PAIR_LEN : CBM_SZ_256;
-        cbm_file_info_t *new_files = realloc(fl->files, new_cap * sizeof(cbm_file_info_t));
+        cbm_file_info_t *new_files = CBM_REALLOC(fl->files, new_cap * sizeof(cbm_file_info_t));
         if (!new_files) {
             return;
         }
@@ -222,8 +223,8 @@ static void fl_add(file_list_t *fl, const char *abs_path, const char *rel_path, 
     }
 
     cbm_file_info_t *fi = &fl->files[fl->count++];
-    fi->path = strdup(abs_path);
-    fi->rel_path = strdup(rel_path);
+    fi->path = CBM_STRDUP(abs_path);
+    fi->rel_path = CBM_STRDUP(rel_path);
     fi->language = lang;
     fi->size = size;
 }
@@ -420,7 +421,7 @@ enum { GI_OWNED_CAP = 64 };
 static void walk_dir(const char *dir_path, const char *rel_prefix, const cbm_discover_opts_t *opts,
                      const cbm_gitignore_t *gitignore, const cbm_gitignore_t *cbmignore,
                      file_list_t *out) {
-    walk_frame_t *stack = calloc(WALK_STACK_CAP, sizeof(walk_frame_t));
+    walk_frame_t *stack = CBM_CALLOC(WALK_STACK_CAP, sizeof(walk_frame_t));
     if (!stack) {
         return;
     }
@@ -460,7 +461,7 @@ static void walk_dir(const char *dir_path, const char *rel_prefix, const cbm_dis
     for (int i = 0; i < owned_count; i++) {
         cbm_gitignore_free(owned_gis[i]);
     }
-    free(stack);
+    CBM_FREE(stack);
 }
 
 /* ── Public API ──────────────────────────────────────────────────── */
@@ -517,8 +518,8 @@ void cbm_discover_free(cbm_file_info_t *files, int count) {
         return;
     }
     for (int i = 0; i < count; i++) {
-        free(files[i].path);
-        free(files[i].rel_path);
+        CBM_FREE(files[i].path);
+        CBM_FREE(files[i].rel_path);
     }
-    free(files);
+    CBM_FREE(files);
 }

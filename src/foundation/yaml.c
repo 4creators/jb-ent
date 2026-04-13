@@ -21,6 +21,7 @@ enum { YAML_INIT_CAP = 8, YAML_LIST_PREFIX = 2, YAML_ROOT_INDENT = -1 };
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* ── Node types ───────────────────────────────────────────────── */
 
@@ -44,7 +45,7 @@ struct cbm_yaml_node {
 /* ── Node lifecycle ───────────────────────────────────────────── */
 
 static cbm_yaml_node_t *node_new(yaml_type_t type) {
-    cbm_yaml_node_t *n = calloc(CBM_ALLOC_ONE, sizeof(*n));
+    cbm_yaml_node_t *n = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*n));
     if (n) {
         n->type = type;
     }
@@ -58,7 +59,7 @@ static bool node_add_child(cbm_yaml_node_t *parent, cbm_yaml_node_t *child) {
     if (parent->child_count >= parent->child_cap) {
         int new_cap =
             parent->child_cap < YAML_INIT_CAP ? YAML_INIT_CAP : parent->child_cap * PAIR_LEN;
-        cbm_yaml_node_t **new_arr = realloc(parent->children, (size_t)new_cap * sizeof(*new_arr));
+        cbm_yaml_node_t **new_arr = CBM_REALLOC(parent->children, (size_t)new_cap * sizeof(*new_arr));
         if (!new_arr) {
             return false;
         }
@@ -84,10 +85,10 @@ void cbm_yaml_free(cbm_yaml_node_t *root) {
                 stack[top++] = node->children[i];
             }
         }
-        free(node->children);
-        free(node->key);
-        free(node->value);
-        free(node);
+        CBM_FREE(node->children);
+        CBM_FREE(node->key);
+        CBM_FREE(node->value);
+        CBM_FREE(node);
     }
 }
 
@@ -102,10 +103,10 @@ static char *trim_dup(const char *start, const char *end) {
         start++;
     }
     if (start >= end) {
-        return strdup("");
+        return CBM_STRDUP("");
     }
     size_t len = (size_t)(end - start);
-    char *s = malloc(len + SKIP_ONE);
+    char *s = CBM_MALLOC(len + SKIP_ONE);
     if (!s) {
         return NULL;
     }
@@ -232,7 +233,7 @@ static void parse_key_line(const char *content, int content_len, int indent,
                 cbm_yaml_free(child);
             }
         } else {
-            free(key);
+            CBM_FREE(key);
         }
     } else {
         /* "key:" — could be map or list (determined by next lines) */
@@ -246,7 +247,7 @@ static void parse_key_line(const char *content, int content_len, int indent,
                 stack[(*stack_depth)++] = (stack_entry_t){.node = child, .indent = indent};
             }
         } else {
-            free(key);
+            CBM_FREE(key);
         }
     }
 }

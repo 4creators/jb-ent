@@ -12,6 +12,7 @@
 
 #include "store/store.h"
 #include <stdbool.h>
+#include "foundation/allocator.h"
 
 /* ── Layout node (output) ─────────────────────────────────────── */
 
@@ -62,7 +63,7 @@ cbm_layout_result_t *cbm_layout_compute(cbm_store_t *store, const char *project,
 /* Free a layout result. */
 void cbm_layout_free(cbm_layout_result_t *result);
 
-/* Serialize layout result to JSON string. Caller must free(). */
+/* Serialize layout result to JSON string. Caller must CBM_FREE(). */
 char *cbm_layout_to_json(const cbm_layout_result_t *result);
 
 #endif /* CBM_UI_LAYOUT3D_H */

@@ -17,6 +17,7 @@
 // Atomic counters for profiling parse vs extraction time (nanoseconds).
 // Accessed from multiple threads; using _Atomic for safe accumulation.
 #include <stdatomic.h>
+#include "foundation/allocator.h"
 static _Atomic uint64_t total_parse_ns = 0;
 static _Atomic uint64_t total_extract_ns = 0;
 static _Atomic uint64_t total_lsp_ns = 0;
@@ -252,7 +253,7 @@ CBMFileResult *cbm_extract_file(const char *source, int source_len, CBMLanguage 
                                 const char **extra_defines, const char **include_paths) {
     // Allocate result on heap (arena inside for all string data)
     enum { SINGLE = 1 };
-    CBMFileResult *result = (CBMFileResult *)calloc(SINGLE, sizeof(CBMFileResult));
+    CBMFileResult *result = (CBMFileResult *)CBM_CALLOC(SINGLE, sizeof(CBMFileResult));
     if (!result) {
         return NULL;
     }
@@ -443,7 +444,7 @@ void cbm_free_result(CBMFileResult *result) {
         result->cached_tree = NULL;
     }
     cbm_arena_destroy(&result->arena);
-    free(result);
+    CBM_FREE(result);
 }
 
 void cbm_free_tree(CBMFileResult *result) {

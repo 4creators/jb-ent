@@ -1,3 +1,4 @@
+#include "foundation/allocator.h"
 /*
  * constants.h — Project-wide named constants.
  *
@@ -8,7 +9,7 @@
 #define CBM_CONSTANTS_H
 
 /* ── Allocation counts ───────────────────────────────────────── */
-enum { CBM_ALLOC_ONE = 1 }; /* calloc(CBM_ALLOC_ONE, sizeof(T)) */
+enum { CBM_ALLOC_ONE = 1 }; /* CBM_CALLOC(CBM_ALLOC_ONE, sizeof(T)) */
 
 /* ── Byte / character constants ──────────────────────────────── */
 enum {

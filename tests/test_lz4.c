@@ -7,6 +7,7 @@
  */
 #include "test_framework.h"
 #include <time.h>
+#include "foundation/allocator.h"
 
 /* lz4_store.c has no header — declare extern */
 extern int cbm_lz4_compress_hc(const char *src, int srcLen, char *dst, int dstCap);
@@ -27,27 +28,27 @@ static int lz4_roundtrip(const char *data, int len) {
     if (bound <= 0)
         return -1;
 
-    char *cbuf = malloc(bound);
+    char *cbuf = CBM_MALLOC(bound);
     if (!cbuf)
         return -1;
 
     int clen = cbm_lz4_compress_hc(data, len, cbuf, bound);
     if (clen <= 0) {
-        free(cbuf);
+        CBM_FREE(cbuf);
         return -1;
     }
 
-    char *dbuf = malloc(len);
+    char *dbuf = CBM_MALLOC(len);
     if (!dbuf) {
-        free(cbuf);
+        CBM_FREE(cbuf);
         return -1;
     }
 
     int dlen = cbm_lz4_decompress(cbuf, clen, dbuf, len);
     int ok = (dlen == len && memcmp(dbuf, data, len) == 0) ? 0 : -1;
 
-    free(cbuf);
-    free(dbuf);
+    CBM_FREE(cbuf);
+    CBM_FREE(dbuf);
     return ok;
 }
 
@@ -70,13 +71,13 @@ TEST(lz4_roundtrip_small) {
 TEST(lz4_roundtrip_repeated) {
     /* 40,000 bytes of repeated "ABCD" — highly compressible */
     int len = 10000 * 4;
-    char *data = malloc(len);
+    char *data = CBM_MALLOC(len);
     ASSERT_NOT_NULL(data);
     for (int i = 0; i < 10000; i++)
         memcpy(data + i * 4, "ABCD", 4);
 
     int rc = lz4_roundtrip(data, len);
-    free(data);
+    CBM_FREE(data);
     ASSERT_EQ(rc, 0);
     PASS();
 }
@@ -100,13 +101,13 @@ TEST(lz4_compression_ratio) {
     int line_len = (int)strlen(line);
     int total = line_len * 1000;
 
-    char *data = malloc(total);
+    char *data = CBM_MALLOC(total);
     ASSERT_NOT_NULL(data);
     for (int i = 0; i < 1000; i++)
         memcpy(data + i * line_len, line, line_len);
 
     int bound = cbm_lz4_bound(total);
-    char *cbuf = malloc(bound);
+    char *cbuf = CBM_MALLOC(bound);
     ASSERT_NOT_NULL(cbuf);
 
     int clen = cbm_lz4_compress_hc(data, total, cbuf, bound);
@@ -116,8 +117,8 @@ TEST(lz4_compression_ratio) {
     /* Expect >2x compression on repetitive source code */
     ASSERT_TRUE(ratio >= 2.0);
 
-    free(data);
-    free(cbuf);
+    CBM_FREE(data);
+    CBM_FREE(cbuf);
     PASS();
 }
 
@@ -127,7 +128,7 @@ TEST(lz4_decompress_wrong_len) {
     int src_len = (int)strlen(src);
 
     int bound = cbm_lz4_bound(src_len);
-    char *cbuf = malloc(bound);
+    char *cbuf = CBM_MALLOC(bound);
     ASSERT_NOT_NULL(cbuf);
 
     int clen = cbm_lz4_compress_hc(src, src_len, cbuf, bound);
@@ -135,7 +136,7 @@ TEST(lz4_decompress_wrong_len) {
 
     /* Allocate larger buffer, pass wrong originalLen */
     int wrong_len = src_len + 100;
-    char *dbuf = malloc(wrong_len);
+    char *dbuf = CBM_MALLOC(wrong_len);
     ASSERT_NOT_NULL(dbuf);
 
     /* LZ4_decompress_safe won't crash — it either succeeds partially
@@ -143,15 +144,15 @@ TEST(lz4_decompress_wrong_len) {
     int dlen = cbm_lz4_decompress(cbuf, clen, dbuf, wrong_len);
     (void)dlen; /* result may vary; safety is what matters */
 
-    free(cbuf);
-    free(dbuf);
+    CBM_FREE(cbuf);
+    CBM_FREE(dbuf);
     PASS();
 }
 
 TEST(lz4_random_data) {
     /* Random data is incompressible — LZ4 should still handle it */
     int len = 4096;
-    char *data = malloc(len);
+    char *data = CBM_MALLOC(len);
     ASSERT_NOT_NULL(data);
 
     /* Simple PRNG seeded from time — not crypto, just needs to be non-repeating */
@@ -162,22 +163,22 @@ TEST(lz4_random_data) {
     }
 
     int bound = cbm_lz4_bound(len);
-    char *cbuf = malloc(bound);
+    char *cbuf = CBM_MALLOC(bound);
     ASSERT_NOT_NULL(cbuf);
 
     int clen = cbm_lz4_compress_hc(data, len, cbuf, bound);
     ASSERT_GT(clen, 0);
 
-    char *dbuf = malloc(len);
+    char *dbuf = CBM_MALLOC(len);
     ASSERT_NOT_NULL(dbuf);
 
     int dlen = cbm_lz4_decompress(cbuf, clen, dbuf, len);
     ASSERT_EQ(dlen, len);
     ASSERT_MEM_EQ(dbuf, data, len);
 
-    free(data);
-    free(cbuf);
-    free(dbuf);
+    CBM_FREE(data);
+    CBM_FREE(cbuf);
+    CBM_FREE(dbuf);
     PASS();
 }
 

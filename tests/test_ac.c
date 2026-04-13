@@ -7,6 +7,7 @@
 #include "test_framework.h"
 #include <stdint.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* Declarations from ac.c (no public header yet — these are the C API) */
 typedef struct CBMAutomaton CBMAutomaton;
@@ -197,7 +198,7 @@ TEST(ac_free_double_call) {
     cbm_ac_free(ac);
     /* ac is now freed — calling free again should not crash.
        Note: in C the pointer is dangling, but cbm_ac_free checks for NULL
-       internally. We already test free(NULL) in ac_null_input.
+       internally. We already test CBM_FREE(NULL) in ac_null_input.
        This test verifies the Go test expectation. */
     PASS();
 }
@@ -234,7 +235,7 @@ TEST(ac_scan_lz4_bitmask) {
                          "    _ = resp\n    _ = err\n}\n";
     int src_len = (int)strlen(source);
     int bound = cbm_lz4_bound(src_len);
-    char *compressed = malloc(bound);
+    char *compressed = CBM_MALLOC(bound);
     ASSERT_NOT_NULL(compressed);
     int comp_len = cbm_lz4_compress_hc(source, src_len, compressed, bound);
     ASSERT_GT(comp_len, 0);
@@ -246,13 +247,13 @@ TEST(ac_scan_lz4_bitmask) {
     const char *no_http = "package main\nfunc main() { println(42) }\n";
     int nh_len = (int)strlen(no_http);
     int bound2 = cbm_lz4_bound(nh_len);
-    char *comp2 = malloc(bound2);
+    char *comp2 = CBM_MALLOC(bound2);
     int comp2_len = cbm_lz4_compress_hc(no_http, nh_len, comp2, bound2);
     mask = cbm_ac_scan_lz4_bitmask(ac, comp2, comp2_len, nh_len);
     ASSERT_EQ(mask, 0ULL);
 
-    free(compressed);
-    free(comp2);
+    CBM_FREE(compressed);
+    CBM_FREE(comp2);
     cbm_ac_free(ac);
     PASS();
 }
@@ -273,7 +274,7 @@ TEST(ac_scan_lz4_batch) {
     for (int i = 0; i < 3; i++) {
         int slen = (int)strlen(files[i]);
         int bound = cbm_lz4_bound(slen);
-        comp_bufs[i] = malloc(bound);
+        comp_bufs[i] = CBM_MALLOC(bound);
         int clen = cbm_lz4_compress_hc(files[i], slen, comp_bufs[i], bound);
         entries[i].data = comp_bufs[i];
         entries[i].compressed_len = clen;
@@ -289,7 +290,7 @@ TEST(ac_scan_lz4_batch) {
     ASSERT(matches[1].bitmask & 4ULL); /* Route::get */
 
     for (int i = 0; i < 3; i++)
-        free(comp_bufs[i]);
+        CBM_FREE(comp_bufs[i]);
     cbm_ac_free(ac);
     PASS();
 }
@@ -327,7 +328,7 @@ TEST(ac_large_pattern_set) {
         "producer.send",   "producer.Send",
     };
     int count = sizeof(patterns) / sizeof(patterns[0]);
-    int *lengths = malloc(count * sizeof(int));
+    int *lengths = CBM_MALLOC(count * sizeof(int));
     for (int i = 0; i < count; i++)
         lengths[i] = (int)strlen(patterns[i]);
 
@@ -357,7 +358,7 @@ TEST(ac_large_pattern_set) {
     mask = cbm_ac_scan_bitmask(ac, "func main() { fmt.Println(42) }", 31);
     ASSERT_EQ(mask, 0ULL);
 
-    free(lengths);
+    CBM_FREE(lengths);
     cbm_ac_free(ac);
     PASS();
 }

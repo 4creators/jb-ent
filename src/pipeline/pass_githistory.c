@@ -94,14 +94,14 @@ static void commit_add_file(commit_t *c, const char *file) {
         c->cap = c->cap ? c->cap * PAIR_LEN : GH_INIT_CAP;
         c->files = safe_realloc(c->files, c->cap * sizeof(char *));
     }
-    c->files[c->count++] = strdup(file);
+    c->files[c->count++] = CBM_STRDUP(file);
 }
 
 static void commit_free(commit_t *c) {
     for (int i = 0; i < c->count; i++) {
-        free(c->files[i]);
+        CBM_FREE(c->files[i]);
     }
-    free(c->files);
+    CBM_FREE(c->files);
 }
 
 /* ── libgit2-based git log parsing (preferred) ────────────────────── */
@@ -109,6 +109,7 @@ static void commit_free(commit_t *c) {
 #ifdef HAVE_LIBGIT2
 #include <git2.h>
 #include <time.h>
+#include "foundation/allocator.h"
 
 static int parse_git_log(const char *repo_path, commit_t **out, int *out_count) {
     *out = NULL;
@@ -137,7 +138,7 @@ static int parse_git_log(const char *repo_path, commit_t **out, int *out_count) 
     int max_commits = 10000;
 
     int cap = CBM_SZ_64;
-    commit_t *commits = malloc(cap * sizeof(commit_t));
+    commit_t *commits = CBM_MALLOC(cap * sizeof(commit_t));
     int count = 0;
 
     git_oid oid;
@@ -234,7 +235,7 @@ static int parse_git_log(const char *repo_path, commit_t **out, int *out_count) 
     }
 
     int cap = CBM_SZ_64;
-    commit_t *commits = malloc(cap * sizeof(commit_t));
+    commit_t *commits = CBM_MALLOC(cap * sizeof(commit_t));
     int count = 0;
     commit_t current = {0};
 
@@ -285,8 +286,8 @@ static int parse_git_log(const char *repo_path, commit_t **out, int *out_count) 
 /* Callback to free hash table entries. */
 static void free_counter(const char *key, void *val, void *ud) {
     (void)ud;
-    free((void *)key);
-    free(val);
+    CBM_FREE((void *)key);
+    CBM_FREE(val);
 }
 
 /* ── Standalone coupling computation (testable) ──────────────────── */
@@ -361,12 +362,12 @@ int cbm_compute_change_coupling(const cbm_commit_files_t *commits, int commit_co
             if (val) {
                 (*val)++;
             } else {
-                int *nv = malloc(sizeof(int));
+                int *nv = CBM_MALLOC(sizeof(int));
                 if (!nv) {
                     continue;
                 }
                 *nv = SKIP_ONE;
-                cbm_ht_set(file_counts, strdup(commits[c].files[i]), nv);
+                cbm_ht_set(file_counts, CBM_STRDUP(commits[c].files[i]), nv);
             }
         }
 
@@ -381,7 +382,7 @@ int cbm_compute_change_coupling(const cbm_commit_files_t *commits, int commit_co
                 }
                 size_t la = strlen(a);
                 size_t lb = strlen(b);
-                char *pk = malloc(la + SKIP_ONE + lb + SKIP_ONE);
+                char *pk = CBM_MALLOC(la + SKIP_ONE + lb + SKIP_ONE);
                 if (!pk) {
                     continue;
                 }
@@ -392,11 +393,11 @@ int cbm_compute_change_coupling(const cbm_commit_files_t *commits, int commit_co
                 int *val = cbm_ht_get(pair_counts, pk);
                 if (val) {
                     (*val)++;
-                    free(pk);
+                    CBM_FREE(pk);
                 } else {
-                    int *nv = malloc(sizeof(int));
+                    int *nv = CBM_MALLOC(sizeof(int));
                     if (!nv) {
-                        free(pk);
+                        CBM_FREE(pk);
                         continue;
                     }
                     *nv = SKIP_ONE;
@@ -438,19 +439,19 @@ int cbm_pipeline_githistory_compute(const char *repo_path, cbm_githistory_result
     int commit_count = 0;
     int rc = parse_git_log(repo_path, &commits, &commit_count);
     if (rc != 0 || commit_count == 0) {
-        free(commits);
+        CBM_FREE(commits);
         return 0;
     }
 
     result->commit_count = commit_count;
 
     /* Convert to testable format */
-    cbm_commit_files_t *cf = calloc((size_t)commit_count, sizeof(cbm_commit_files_t));
+    cbm_commit_files_t *cf = CBM_CALLOC((size_t)commit_count, sizeof(cbm_commit_files_t));
     if (!cf) {
         for (int c = 0; c < commit_count; c++) {
             commit_free(&commits[c]);
         }
-        free(commits);
+        CBM_FREE(commits);
         return 0;
     }
     for (int c = 0; c < commit_count; c++) {
@@ -458,14 +459,14 @@ int cbm_pipeline_githistory_compute(const char *repo_path, cbm_githistory_result
         cf[c].count = commits[c].count;
     }
 
-    cbm_change_coupling_t *couplings = malloc(MAX_COUPLINGS * sizeof(cbm_change_coupling_t));
+    cbm_change_coupling_t *couplings = CBM_MALLOC(MAX_COUPLINGS * sizeof(cbm_change_coupling_t));
     int coupling_count = cbm_compute_change_coupling(cf, commit_count, couplings, MAX_COUPLINGS);
 
-    free(cf);
+    CBM_FREE(cf);
     for (int c = 0; c < commit_count; c++) {
         commit_free(&commits[c]);
     }
-    free(commits);
+    CBM_FREE(commits);
 
     result->couplings = couplings;
     result->count = coupling_count;
@@ -485,8 +486,8 @@ int cbm_pipeline_githistory_apply(cbm_pipeline_ctx_t *ctx, const cbm_githistory_
         const cbm_gbuf_node_t *node_a = cbm_gbuf_find_by_qn(ctx->gbuf, qn_a);
         const cbm_gbuf_node_t *node_b = cbm_gbuf_find_by_qn(ctx->gbuf, qn_b);
 
-        free(qn_a);
-        free(qn_b);
+        CBM_FREE(qn_a);
+        CBM_FREE(qn_b);
 
         if (!node_a || !node_b || node_a->id == node_b->id) {
             continue;
@@ -516,7 +517,7 @@ int cbm_pipeline_pass_githistory(cbm_pipeline_ctx_t *ctx) {
         edge_count = cbm_pipeline_githistory_apply(ctx, &result);
     }
 
-    free(result.couplings);
+    CBM_FREE(result.couplings);
 
     cbm_log_info("pass.done", "pass", "githistory", "commits", itoa_log(result.commit_count),
                  "edges", itoa_log(edge_count));

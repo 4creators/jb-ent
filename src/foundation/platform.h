@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include "foundation/allocator.h"
 
 /* ── Safe memory ──────────────────────────────────────────────── */
 
@@ -24,9 +25,9 @@ static inline void *safe_realloc(void *ptr, size_t size) {
     if (size == 0) {
         size = SAFE_REALLOC_MIN;
     }
-    void *tmp = realloc(ptr, size);
+    void *tmp = CBM_REALLOC(ptr, size);
     if (!tmp) {
-        free(ptr);
+        CBM_FREE(ptr);
     }
     return tmp;
 }

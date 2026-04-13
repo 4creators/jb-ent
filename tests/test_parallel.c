@@ -22,6 +22,7 @@
 #include <string.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
+#include "foundation/allocator.h"
 
 /* ── Helper: create temp test repo ───────────────────────────────── */
 
@@ -129,7 +130,7 @@ static cbm_gbuf_t *run_parallel(const char *project, const char *repo_path, cbm_
     int64_t gbuf_next = cbm_gbuf_next_id(gbuf);
     atomic_init(&shared_ids, gbuf_next);
 
-    CBMFileResult **result_cache = calloc(file_count, sizeof(CBMFileResult *));
+    CBMFileResult **result_cache = CBM_CALLOC(file_count, sizeof(CBMFileResult *));
 
     cbm_init();
     cbm_parallel_extract(&ctx, files, file_count, result_cache, &shared_ids, worker_count);
@@ -143,7 +144,7 @@ static cbm_gbuf_t *run_parallel(const char *project, const char *repo_path, cbm_
     for (int i = 0; i < file_count; i++)
         if (result_cache[i])
             cbm_free_result(result_cache[i]);
-    free(result_cache);
+    CBM_FREE(result_cache);
 
     cbm_registry_free(reg);
     return gbuf;

@@ -36,6 +36,7 @@ enum { CBM_DIR_PERMS = 0755, PL_RING = 4, PL_RING_MASK = 3, PL_SEQ_PASSES = 5, P
 #include <stdatomic.h>
 #include <sys/stat.h>
 #include <time.h>
+#include "foundation/allocator.h"
 
 static inline void *intptr_to_ptr(intptr_t v) {
     void *p;
@@ -109,13 +110,13 @@ cbm_pipeline_t *cbm_pipeline_new(const char *repo_path, const char *db_path,
         return NULL;
     }
 
-    cbm_pipeline_t *p = calloc(CBM_ALLOC_ONE, sizeof(cbm_pipeline_t));
+    cbm_pipeline_t *p = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_pipeline_t));
     if (!p) {
         return NULL;
     }
 
-    p->repo_path = strdup(repo_path);
-    p->db_path = db_path ? strdup(db_path) : NULL;
+    p->repo_path = CBM_STRDUP(repo_path);
+    p->db_path = db_path ? CBM_STRDUP(db_path) : NULL;
     p->project_name = cbm_project_name_from_path(repo_path);
     p->mode = mode;
     atomic_init(&p->cancelled, 0);
@@ -127,9 +128,9 @@ void cbm_pipeline_free(cbm_pipeline_t *p) {
     if (!p) {
         return;
     }
-    free(p->repo_path);
-    free(p->db_path);
-    free(p->project_name);
+    CBM_FREE(p->repo_path);
+    CBM_FREE(p->db_path);
+    CBM_FREE(p->project_name);
     /* gbuf, store, registry freed during/after run */
     /* Defensively free userconfig in case run() was never called or panicked */
     if (p->userconfig) {
@@ -137,7 +138,7 @@ void cbm_pipeline_free(cbm_pipeline_t *p) {
         cbm_userconfig_free(p->userconfig);
         p->userconfig = NULL;
     }
-    free(p);
+    CBM_FREE(p);
 }
 
 void cbm_pipeline_cancel(cbm_pipeline_t *p) {
@@ -162,9 +163,9 @@ int cbm_pipeline_get_mode(const cbm_pipeline_t *p) {
     return p ? (int)p->mode : 0;
 }
 
-/* Resolve the DB path for this pipeline. Caller must free(). */
+/* Resolve the DB path for this pipeline. Caller must CBM_FREE(). */
 static char *resolve_db_path(const cbm_pipeline_t *p) {
-    char *path = malloc(CBM_SZ_1K);
+    char *path = CBM_MALLOC(CBM_SZ_1K);
     if (!path) {
         return NULL;
     }
@@ -185,7 +186,7 @@ static int check_cancel(const cbm_pipeline_t *p) {
 static void free_seen_dir_key(const char *key, void *val, void *ud) {
     (void)val;
     (void)ud;
-    free((void *)key);
+    CBM_FREE((void *)key);
 }
 
 /* ── Pass 1: Structure ──────────────────────────────────────────── */
@@ -193,21 +194,21 @@ static void free_seen_dir_key(const char *key, void *val, void *ud) {
 /* Create Project, Folder/Package, and File nodes in the graph buffer. */
 /* Walk directory chain upward, creating Folder nodes and CONTAINS_FOLDER edges. */
 static void create_folder_chain(cbm_pipeline_t *p, const char *dir, CBMHashTable *seen_dirs) {
-    char *walk = strdup(dir);
+    char *walk = CBM_STRDUP(dir);
     while (walk[0] != '\0' && !cbm_ht_get(seen_dirs, walk)) {
-        cbm_ht_set(seen_dirs, strdup(walk), intptr_to_ptr(SKIP_ONE));
+        cbm_ht_set(seen_dirs, CBM_STRDUP(walk), intptr_to_ptr(SKIP_ONE));
         char *folder_qn = cbm_pipeline_fqn_folder(p->project_name, walk);
         const char *dir_base = strrchr(walk, '/');
         dir_base = dir_base ? dir_base + SKIP_ONE : walk;
         cbm_gbuf_upsert_node(p->gbuf, "Folder", dir_base, folder_qn, walk, 0, 0, "{}");
 
-        char *pdir = strdup(walk);
+        char *pdir = CBM_STRDUP(walk);
         char *ps = strrchr(pdir, '/');
         if (ps) {
             *ps = '\0';
         } else {
-            free(pdir);
-            pdir = strdup("");
+            CBM_FREE(pdir);
+            pdir = CBM_STRDUP("");
         }
         const char *pqn;
         char *pqn_heap = NULL;
@@ -222,17 +223,17 @@ static void create_folder_chain(cbm_pipeline_t *p, const char *dir, CBMHashTable
         if (fn && pn) {
             cbm_gbuf_insert_edge(p->gbuf, pn->id, fn->id, "CONTAINS_FOLDER", "{}");
         }
-        free(folder_qn);
-        free(pqn_heap);
+        CBM_FREE(folder_qn);
+        CBM_FREE(pqn_heap);
         char *up = strrchr(walk, '/');
         if (up) {
             *up = '\0';
         } else {
             walk[0] = '\0';
         }
-        free(pdir);
+        CBM_FREE(pdir);
     }
-    free(walk);
+    CBM_FREE(walk);
 }
 
 static int pass_structure(cbm_pipeline_t *p, const cbm_file_info_t *files, int file_count) {
@@ -265,15 +266,15 @@ static int pass_structure(cbm_pipeline_t *p, const cbm_file_info_t *files, int f
         cbm_gbuf_upsert_node(p->gbuf, "File", basename, qualified_name, file_path, 0, 0, props);
 
         /* CONTAINS_FILE edge: parent dir -> file */
-        char *dir = strdup(rel);
+        char *dir = CBM_STRDUP(rel);
         char *last_slash = strrchr(dir, '/');
         if (last_slash) {
             {
                 *last_slash = '\0';
             }
         } else {
-            free(dir);
-            dir = strdup("");
+            CBM_FREE(dir);
+            dir = CBM_STRDUP("");
         }
 
         const char *parent_qn;
@@ -295,9 +296,9 @@ static int pass_structure(cbm_pipeline_t *p, const cbm_file_info_t *files, int f
             cbm_gbuf_insert_edge(p->gbuf, pnode->id, fnode->id, "CONTAINS_FILE", "{}");
         }
 
-        free(file_qn);
-        free(dir);
-        free(parent_qn_heap);
+        CBM_FREE(file_qn);
+        CBM_FREE(dir);
+        CBM_FREE(parent_qn_heap);
     }
 
     /* Free seen_dirs keys */
@@ -455,7 +456,7 @@ static int run_sequential_pipeline(cbm_pipeline_t *p, cbm_pipeline_ctx_t *ctx,
                                    const cbm_file_info_t *files, int file_count,
                                    struct timespec *t) {
     cbm_log_info("pipeline.mode", "mode", "sequential", "files", itoa_buf(file_count));
-    CBMFileResult **seq_cache = (CBMFileResult **)calloc(file_count, sizeof(CBMFileResult *));
+    CBMFileResult **seq_cache = (CBMFileResult **)CBM_CALLOC(file_count, sizeof(CBMFileResult *));
     if (seq_cache) {
         ctx->result_cache = seq_cache;
     }
@@ -490,7 +491,7 @@ static int run_sequential_pipeline(cbm_pipeline_t *p, cbm_pipeline_ctx_t *ctx,
                 cbm_free_result(seq_cache[i]);
             }
         }
-        free(seq_cache);
+        CBM_FREE(seq_cache);
         ctx->result_cache = NULL;
     }
     return rc;
@@ -504,7 +505,7 @@ static int run_parallel_pipeline(cbm_pipeline_t *p, cbm_pipeline_ctx_t *ctx,
                  itoa_buf(file_count));
     _Atomic int64_t shared_ids;
     atomic_init(&shared_ids, cbm_gbuf_next_id(p->gbuf));
-    CBMFileResult **cache = (CBMFileResult **)calloc(file_count, sizeof(CBMFileResult *));
+    CBMFileResult **cache = (CBMFileResult **)CBM_CALLOC(file_count, sizeof(CBMFileResult *));
     if (!cache) {
         cbm_log_error("pipeline.err", "phase", "cache_alloc");
         return CBM_NOT_FOUND;
@@ -514,7 +515,7 @@ static int run_parallel_pipeline(cbm_pipeline_t *p, cbm_pipeline_ctx_t *ctx,
     cbm_log_info("pass.timing", "pass", "parallel_extract", "elapsed_ms",
                  itoa_buf((int)elapsed_ms(*t)));
     if (rc != 0 || check_cancel(p)) {
-        free(cache);
+        CBM_FREE(cache);
         return rc != 0 ? rc : CBM_NOT_FOUND;
     }
     cbm_gbuf_set_next_id(p->gbuf, atomic_load(&shared_ids));
@@ -528,7 +529,7 @@ static int run_parallel_pipeline(cbm_pipeline_t *p, cbm_pipeline_ctx_t *ctx,
                 cbm_free_result(cache[i]);
             }
         }
-        free(cache);
+        CBM_FREE(cache);
         return rc != 0 ? rc : CBM_NOT_FOUND;
     }
     cbm_clock_gettime(CLOCK_MONOTONIC, t);
@@ -543,7 +544,7 @@ static int run_parallel_pipeline(cbm_pipeline_t *p, cbm_pipeline_ctx_t *ctx,
             cbm_free_result(cache[i]);
         }
     }
-    free(cache);
+    CBM_FREE(cache);
     if (rc != 0) {
         return rc;
     }
@@ -562,7 +563,7 @@ static int try_incremental_or_delete_db(cbm_pipeline_t *p, cbm_file_info_t *file
     }
     struct stat db_st;
     if (stat(db_path, &db_st) != 0) {
-        free(db_path);
+        CBM_FREE(db_path);
         return CBM_NOT_FOUND;
     }
     cbm_store_t *check_store = cbm_store_open_path(db_path);
@@ -576,7 +577,7 @@ static int try_incremental_or_delete_db(cbm_pipeline_t *p, cbm_file_info_t *file
             cbm_log_info("pipeline.route", "path", "incremental", "stored_hashes",
                          itoa_buf(hash_count));
             int rc = cbm_pipeline_run_incremental(p, db_path, files, file_count);
-            free(db_path);
+            CBM_FREE(db_path);
             return rc;
         }
         if (hash_count > 0) {
@@ -594,7 +595,7 @@ static int try_incremental_or_delete_db(cbm_pipeline_t *p, cbm_file_info_t *file
     snprintf(shm, sizeof(shm), "%s-shm", db_path);
     cbm_unlink(wal);
     cbm_unlink(shm);
-    free(db_path);
+    CBM_FREE(db_path);
     return CBM_NOT_FOUND;
 }
 
@@ -706,7 +707,7 @@ static int run_githistory(cbm_pipeline_t *p, cbm_pipeline_ctx_t *ctx) {
     }
     cbm_log_info("pass.done", "pass", "githistory", "commits", itoa_buf(gh_result.commit_count),
                  "edges", itoa_buf(gh_edges));
-    free(gh_result.couplings);
+    CBM_FREE(gh_result.couplings);
     return 0;
 }
 

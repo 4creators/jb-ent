@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 static char *read_file(const char *path, int *out_len) {
     FILE *f = fopen(path, "rb");
@@ -36,7 +37,7 @@ static char *read_file(const char *path, int *out_len) {
         (void)fclose(f);
         return NULL;
     }
-    char *buf = malloc(size + SKIP_ONE);
+    char *buf = CBM_MALLOC(size + SKIP_ONE);
     if (!buf) {
         (void)fclose(f);
         return NULL;
@@ -71,8 +72,8 @@ static int build_import_map(cbm_pipeline_ctx_t *ctx, const char *rel_path,
 
     /* Fast path: build from cached extraction result (no JSON parsing) */
     if (result && result->imports.count > 0) {
-        const char **keys = calloc((size_t)result->imports.count, sizeof(const char *));
-        const char **vals = calloc((size_t)result->imports.count, sizeof(const char *));
+        const char **keys = CBM_CALLOC((size_t)result->imports.count, sizeof(const char *));
+        const char **vals = CBM_CALLOC((size_t)result->imports.count, sizeof(const char *));
         int count = 0;
 
         for (int i = 0; i < result->imports.count; i++) {
@@ -82,11 +83,11 @@ static int build_import_map(cbm_pipeline_ctx_t *ctx, const char *rel_path,
             }
             char *target_qn = cbm_pipeline_fqn_module(ctx->project_name, imp->module_path);
             const cbm_gbuf_node_t *target = cbm_gbuf_find_by_qn(ctx->gbuf, target_qn);
-            free(target_qn);
+            CBM_FREE(target_qn);
             if (!target) {
                 continue;
             }
-            keys[count] = strdup(imp->local_name);
+            keys[count] = CBM_STRDUP(imp->local_name);
             vals[count] = target->qualified_name;
             count++;
         }
@@ -100,7 +101,7 @@ static int build_import_map(cbm_pipeline_ctx_t *ctx, const char *rel_path,
     /* Slow path: scan graph buffer IMPORTS edges + parse JSON properties */
     char *file_qn = cbm_pipeline_fqn_compute(ctx->project_name, rel_path, "__file__");
     const cbm_gbuf_node_t *file_node = cbm_gbuf_find_by_qn(ctx->gbuf, file_qn);
-    free(file_qn);
+    CBM_FREE(file_qn);
     if (!file_node) {
         return 0;
     }
@@ -113,11 +114,11 @@ static int build_import_map(cbm_pipeline_ctx_t *ctx, const char *rel_path,
         return 0;
     }
 
-    const char **keys = calloc(edge_count, sizeof(const char *));
-    const char **vals = calloc(edge_count, sizeof(const char *));
+    const char **keys = CBM_CALLOC(edge_count, sizeof(const char *));
+    const char **vals = CBM_CALLOC(edge_count, sizeof(const char *));
     if (!keys || !vals) {
-        free((void *)keys);
-        free((void *)vals);
+        CBM_FREE((void *)keys);
+        CBM_FREE((void *)vals);
         return 0;
     }
     int count = 0;
@@ -134,7 +135,7 @@ static int build_import_map(cbm_pipeline_ctx_t *ctx, const char *rel_path,
             start += strlen("\"local_name\":\"");
             const char *end = strchr(start, '"');
             if (end && end > start) {
-                keys[count] = cbm_strndup(start, end - start);
+                keys[count] = CBM_STRNDUP(start, end - start);
                 vals[count] = target->qualified_name;
                 count++;
             }
@@ -150,12 +151,12 @@ static int build_import_map(cbm_pipeline_ctx_t *ctx, const char *rel_path,
 static void free_import_map(const char **keys, const char **vals, int count) {
     if (keys) {
         for (int i = 0; i < count; i++) {
-            free((void *)keys[i]);
+            CBM_FREE((void *)keys[i]);
         }
-        free((void *)keys);
+        CBM_FREE((void *)keys);
     }
     if (vals) {
-        free((void *)vals);
+        CBM_FREE((void *)vals);
     }
 }
 
@@ -377,7 +378,7 @@ static CBMFileResult *sem_get_or_extract(cbm_pipeline_ctx_t *ctx, int file_idx,
     }
     CBMFileResult *r = cbm_extract_file(source, source_len, fi->language, ctx->project_name,
                                         fi->rel_path, CBM_EXTRACT_BUDGET, NULL, NULL);
-    free(source);
+    CBM_FREE(source);
     if (r) {
         *owned = true;
     }
@@ -455,7 +456,7 @@ int cbm_pipeline_pass_semantic(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t *f
         implements_count +=
             resolve_impl_traits(ctx, result, module_qn, imp_keys, imp_vals, imp_count);
 
-        free(module_qn);
+        CBM_FREE(module_qn);
         free_import_map(imp_keys, imp_vals, imp_count);
         if (result_owned) {
             cbm_free_result(result);

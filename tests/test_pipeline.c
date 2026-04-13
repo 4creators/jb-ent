@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include "graph_buffer/graph_buffer.h"
 #include "yyjson/yyjson.h"
+#include "foundation/allocator.h"
 
 /* ── Helper: create temp test repo with known layout ───────────── */
 
@@ -581,10 +582,10 @@ TEST(githistory_limits_to_max) {
     int npairs = nfiles * (nfiles - 1) / 2;
     int ncommits = npairs * 3;
 
-    cbm_commit_files_t *commits = calloc(ncommits, sizeof(cbm_commit_files_t));
-    char **file_strs = calloc(nfiles, sizeof(char *));
+    cbm_commit_files_t *commits = CBM_CALLOC(ncommits, sizeof(cbm_commit_files_t));
+    char **file_strs = CBM_CALLOC(nfiles, sizeof(char *));
     for (int i = 0; i < nfiles; i++) {
-        file_strs[i] = malloc(32);
+        file_strs[i] = CBM_MALLOC(32);
         snprintf(file_strs[i], 32, "f%d.go", i);
     }
 
@@ -592,7 +593,7 @@ TEST(githistory_limits_to_max) {
     for (int i = 0; i < nfiles; i++) {
         for (int j = i + 1; j < nfiles; j++) {
             for (int k = 0; k < 3; k++) {
-                commits[ci].files = malloc(2 * sizeof(char *));
+                commits[ci].files = CBM_MALLOC(2 * sizeof(char *));
                 commits[ci].files[0] = file_strs[i];
                 commits[ci].files[1] = file_strs[j];
                 commits[ci].count = 2;
@@ -608,13 +609,13 @@ TEST(githistory_limits_to_max) {
 
     /* Cleanup */
     for (int i = 0; i < ncommits; i++) {
-        free(commits[i].files);
+        CBM_FREE(commits[i].files);
     }
     for (int i = 0; i < nfiles; i++) {
-        free(file_strs[i]);
+        CBM_FREE(file_strs[i]);
     }
-    free(file_strs);
-    free(commits);
+    CBM_FREE(file_strs);
+    CBM_FREE(commits);
 
     PASS();
 }
@@ -1910,7 +1911,7 @@ TEST(project_name_from_path) {
         char *got = cbm_project_name_from_path(cases[i].path);
         ASSERT_NOT_NULL(got);
         ASSERT_STR_EQ(got, cases[i].want);
-        free(got);
+        CBM_FREE(got);
     }
     PASS();
 }
@@ -1922,8 +1923,8 @@ TEST(project_name_uniqueness) {
     ASSERT_NOT_NULL(a);
     ASSERT_NOT_NULL(b);
     ASSERT_TRUE(strcmp(a, b) != 0);
-    free(a);
-    free(b);
+    CBM_FREE(a);
+    CBM_FREE(b);
     PASS();
 }
 
@@ -2301,26 +2302,26 @@ TEST(enrichment_split_camel_case) {
     ASSERT_STR_EQ(parts[0], "Get");
     ASSERT_STR_EQ(parts[1], "Mapping");
     for (int i = 0; i < n; i++)
-        free(parts[i]);
+        CBM_FREE(parts[i]);
 
     n = cbm_split_camel_case("getMessage", parts, 8);
     ASSERT_EQ(n, 2);
     ASSERT_STR_EQ(parts[0], "get");
     ASSERT_STR_EQ(parts[1], "Message");
     for (int i = 0; i < n; i++)
-        free(parts[i]);
+        CBM_FREE(parts[i]);
 
     n = cbm_split_camel_case("cache", parts, 8);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(parts[0], "cache");
     for (int i = 0; i < n; i++)
-        free(parts[i]);
+        CBM_FREE(parts[i]);
 
     n = cbm_split_camel_case("HTMLParser", parts, 8);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(parts[0], "HTMLParser");
     for (int i = 0; i < n; i++)
-        free(parts[i]);
+        CBM_FREE(parts[i]);
 
     n = cbm_split_camel_case("", parts, 8);
     ASSERT_EQ(n, 0);
@@ -2335,46 +2336,46 @@ TEST(enrichment_tokenize_decorator) {
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "override");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     n = cbm_tokenize_decorator("@Deprecated", tokens, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "deprecated");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     n = cbm_tokenize_decorator("@Test", tokens, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "test");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     n = cbm_tokenize_decorator("@login_required", tokens, 16);
     ASSERT_EQ(n, 2);
     ASSERT_STR_EQ(tokens[0], "login");
     ASSERT_STR_EQ(tokens[1], "required");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     n = cbm_tokenize_decorator("@cache", tokens, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "cache");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     n = cbm_tokenize_decorator("@pytest.fixture", tokens, 16);
     ASSERT_EQ(n, 2);
     ASSERT_STR_EQ(tokens[0], "pytest");
     ASSERT_STR_EQ(tokens[1], "fixture");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     /* "get" is stopword → only "mapping" */
     n = cbm_tokenize_decorator("@GetMapping(\"/api\")", tokens, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "mapping");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     /* "post" passes, "mapping" passes */
     n = cbm_tokenize_decorator("@PostMapping(\"/api\")", tokens, 16);
@@ -2382,34 +2383,34 @@ TEST(enrichment_tokenize_decorator) {
     ASSERT_STR_EQ(tokens[0], "post");
     ASSERT_STR_EQ(tokens[1], "mapping");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     n = cbm_tokenize_decorator("@Transactional", tokens, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "transactional");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     n = cbm_tokenize_decorator("@MessageMapping(\"/chat\")", tokens, 16);
     ASSERT_EQ(n, 2);
     ASSERT_STR_EQ(tokens[0], "message");
     ASSERT_STR_EQ(tokens[1], "mapping");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     /* Rust-style #[test] */
     n = cbm_tokenize_decorator("#[test]", tokens, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "test");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     /* #[derive(Debug)] */
     n = cbm_tokenize_decorator("#[derive(Debug)]", tokens, 16);
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "derive");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     /* Both "app" and "get" are stopwords → empty */
     n = cbm_tokenize_decorator("@app.get(\"/api\")", tokens, 16);
@@ -2420,7 +2421,7 @@ TEST(enrichment_tokenize_decorator) {
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "post");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     /* Too short after filtering */
     n = cbm_tokenize_decorator("@x", tokens, 16);
@@ -2435,14 +2436,14 @@ TEST(enrichment_tokenize_decorator) {
     ASSERT_STR_EQ(tokens[0], "click");
     ASSERT_STR_EQ(tokens[1], "command");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
 
     n = cbm_tokenize_decorator("@celery.task", tokens, 16);
     ASSERT_EQ(n, 2);
     ASSERT_STR_EQ(tokens[0], "celery");
     ASSERT_STR_EQ(tokens[1], "task");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
     PASS();
 }
 
@@ -2632,17 +2633,17 @@ TEST(compile_commands_split_command) {
     ASSERT_STR_EQ(args[1], "-c");
     ASSERT_STR_EQ(args[2], "main.c");
     for (int i = 0; i < n; i++)
-        free(args[i]);
+        CBM_FREE(args[i]);
 
     n = cbm_split_command("gcc -DFOO=\"bar baz\" -c main.c", args, 16);
     ASSERT_EQ(n, 4);
     for (int i = 0; i < n; i++)
-        free(args[i]);
+        CBM_FREE(args[i]);
 
     n = cbm_split_command("g++ -I/usr/include -std=c++17 -o out -c in.cpp", args, 16);
     ASSERT_EQ(n, 7);
     for (int i = 0; i < n; i++)
-        free(args[i]);
+        CBM_FREE(args[i]);
     PASS();
 }
 
@@ -2715,11 +2716,11 @@ TEST(compile_commands_parse_json) {
 
     /* Cleanup */
     for (int i = 0; i < n; i++) {
-        free(paths[i]);
+        CBM_FREE(paths[i]);
         cbm_compile_flags_free(flags[i]);
     }
-    free(paths);
-    free(flags);
+    CBM_FREE(paths);
+    CBM_FREE(flags);
     PASS();
 }
 
@@ -2728,8 +2729,8 @@ TEST(compile_commands_parse_empty) {
     cbm_compile_flags_t **flags = NULL;
     int n = cbm_parse_compile_commands("[]", "/repo", &paths, &flags);
     ASSERT_EQ(n, 0);
-    free(paths);
-    free(flags);
+    CBM_FREE(paths);
+    CBM_FREE(flags);
     PASS();
 }
 
@@ -3565,13 +3566,13 @@ TEST(infra_qn_helper) {
     char *qn = cbm_infra_qn("myproject", "docker-images/service/Dockerfile", "dockerfile", NULL);
     ASSERT_NOT_NULL(qn);
     ASSERT(strstr(qn, ".__infra__") != NULL);
-    free(qn);
+    CBM_FREE(qn);
 
     /* Compose service → ::service_name suffix */
     qn = cbm_infra_qn("myproject", "docker-compose.yml", "compose-service", "web");
     ASSERT_NOT_NULL(qn);
     ASSERT(strstr(qn, "::web") != NULL);
-    free(qn);
+    CBM_FREE(qn);
 
     PASS();
 }
@@ -4243,7 +4244,7 @@ TEST(registry_find_ending_with) {
     int count = cbm_registry_find_ending_with(reg, "DataProcessor.transform", &matches);
     ASSERT_EQ(count, 1);
     ASSERT_STR_EQ(matches[0], "proj.utils.DataProcessor.transform");
-    free(matches);
+    CBM_FREE(matches);
 
     /* FindEndingWith "Foo" → 2 matches */
     matches = NULL;
@@ -4259,7 +4260,7 @@ TEST(registry_find_ending_with) {
     }
     ASSERT_TRUE(found_pkg);
     ASSERT_TRUE(found_other);
-    free(matches);
+    CBM_FREE(matches);
 
     /* FindEndingWith "Nonexistent" → 0 matches */
     matches = NULL;
@@ -4382,7 +4383,7 @@ TEST(incremental_full_then_noop) {
     cbm_pipeline_t *p = cbm_pipeline_new(g_incr_tmpdir, g_incr_dbpath, CBM_MODE_FULL);
     ASSERT_NOT_NULL(p);
     ASSERT_EQ(cbm_pipeline_run(p), 0);
-    char *project = strdup(cbm_pipeline_project_name(p));
+    char *project = CBM_STRDUP(cbm_pipeline_project_name(p));
     cbm_pipeline_free(p);
 
     /* Verify nodes exist */
@@ -4404,7 +4405,7 @@ TEST(incremental_full_then_noop) {
     /* Node count should be same (no duplicates, no loss) */
     ASSERT_EQ(nodes_after, nodes_before);
     cbm_store_close(s);
-    free(project);
+    CBM_FREE(project);
 
     cleanup_incremental_repo();
     PASS();
@@ -4420,7 +4421,7 @@ TEST(incremental_detects_changed_file) {
     cbm_pipeline_t *p = cbm_pipeline_new(g_incr_tmpdir, g_incr_dbpath, CBM_MODE_FULL);
     ASSERT_NOT_NULL(p);
     ASSERT_EQ(cbm_pipeline_run(p), 0);
-    char *project = strdup(cbm_pipeline_project_name(p));
+    char *project = CBM_STRDUP(cbm_pipeline_project_name(p));
     cbm_pipeline_free(p);
 
     /* Modify helper.go — add a new function */
@@ -4445,7 +4446,7 @@ TEST(incremental_detects_changed_file) {
     ASSERT_GT(nodes_after, 0);
     cbm_store_close(s);
     cbm_pipeline_free(p);
-    free(project);
+    CBM_FREE(project);
 
     cleanup_incremental_repo();
     PASS();
@@ -4461,7 +4462,7 @@ TEST(incremental_detects_deleted_file) {
     cbm_pipeline_t *p = cbm_pipeline_new(g_incr_tmpdir, g_incr_dbpath, CBM_MODE_FULL);
     ASSERT_NOT_NULL(p);
     ASSERT_EQ(cbm_pipeline_run(p), 0);
-    char *project = strdup(cbm_pipeline_project_name(p));
+    char *project = CBM_STRDUP(cbm_pipeline_project_name(p));
     cbm_pipeline_free(p);
 
     /* Delete helper.go */
@@ -4481,7 +4482,7 @@ TEST(incremental_detects_deleted_file) {
     ASSERT_GT(nodes_after, 0); /* still has main.go nodes */
     cbm_store_close(s);
     cbm_pipeline_free(p);
-    free(project);
+    CBM_FREE(project);
 
     cleanup_incremental_repo();
     PASS();
@@ -4497,7 +4498,7 @@ TEST(incremental_new_file_added) {
     cbm_pipeline_t *p = cbm_pipeline_new(g_incr_tmpdir, g_incr_dbpath, CBM_MODE_FULL);
     ASSERT_NOT_NULL(p);
     ASSERT_EQ(cbm_pipeline_run(p), 0);
-    char *project = strdup(cbm_pipeline_project_name(p));
+    char *project = CBM_STRDUP(cbm_pipeline_project_name(p));
     cbm_pipeline_free(p);
 
     /* Add extra.go */
@@ -4519,7 +4520,7 @@ TEST(incremental_new_file_added) {
     ASSERT_GT(nodes_after, 0);
     cbm_store_close(s);
     cbm_pipeline_free(p);
-    free(project);
+    CBM_FREE(project);
 
     cleanup_incremental_repo();
     PASS();
@@ -4549,7 +4550,7 @@ TEST(incremental_k8s_manifest_indexed) {
     cbm_pipeline_t *p = cbm_pipeline_new(tmpdir, dbpath, CBM_MODE_FULL);
     ASSERT_NOT_NULL(p);
     ASSERT_EQ(cbm_pipeline_run(p), 0);
-    char *project = strdup(cbm_pipeline_project_name(p));
+    char *project = CBM_STRDUP(cbm_pipeline_project_name(p));
     cbm_pipeline_free(p);
 
     /* Verify Resource node created by full index */
@@ -4585,7 +4586,7 @@ TEST(incremental_k8s_manifest_indexed) {
     cbm_store_free_nodes(nodes, count);
     cbm_store_close(s);
 
-    free(project);
+    CBM_FREE(project);
     th_rmtree(tmpdir);
     PASS();
 }
@@ -4614,7 +4615,7 @@ TEST(incremental_kustomize_module_indexed) {
     cbm_pipeline_t *p = cbm_pipeline_new(tmpdir, dbpath, CBM_MODE_FULL);
     ASSERT_NOT_NULL(p);
     ASSERT_EQ(cbm_pipeline_run(p), 0);
-    char *project = strdup(cbm_pipeline_project_name(p));
+    char *project = CBM_STRDUP(cbm_pipeline_project_name(p));
     cbm_pipeline_free(p);
 
     /* Add kustomization.yaml */
@@ -4650,7 +4651,7 @@ TEST(incremental_kustomize_module_indexed) {
     cbm_store_close(s);
     ASSERT_TRUE(found_kust);
 
-    free(project);
+    CBM_FREE(project);
     th_rmtree(tmpdir);
     PASS();
 }
@@ -4783,7 +4784,7 @@ TEST(pipeline_double_cancel) {
 }
 
 TEST(pipeline_double_free_prevention) {
-    /* free(NULL) after free should not crash. We can't truly double-free
+    /* CBM_FREE(NULL) after free should not crash. We can't truly double-free
      * the same pointer, but we verify NULL is safe as documented. */
     cbm_pipeline_free(NULL);
     cbm_pipeline_free(NULL);
@@ -4928,7 +4929,7 @@ TEST(split_camel_basic) {
     ASSERT_STR_EQ(parts[1], "Camel");
     ASSERT_STR_EQ(parts[2], "Case");
     for (int i = 0; i < n; i++)
-        free(parts[i]);
+        CBM_FREE(parts[i]);
 
     PASS();
 }
@@ -4940,7 +4941,7 @@ TEST(split_camel_single_word) {
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(parts[0], "hello");
     for (int i = 0; i < n; i++)
-        free(parts[i]);
+        CBM_FREE(parts[i]);
     PASS();
 }
 
@@ -4949,7 +4950,7 @@ TEST(split_camel_empty) {
     char *parts[16];
     int n = cbm_split_camel_case("", parts, 16);
     for (int i = 0; i < n; i++)
-        free(parts[i]);
+        CBM_FREE(parts[i]);
     /* Either 0 parts or 1 empty part is acceptable */
     ASSERT_TRUE(n >= 0 && n <= 1);
     PASS();
@@ -4963,7 +4964,7 @@ TEST(tokenize_decorator_login_required) {
     ASSERT_STR_EQ(tokens[0], "login");
     ASSERT_STR_EQ(tokens[1], "required");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
     PASS();
 }
 
@@ -4974,7 +4975,7 @@ TEST(tokenize_decorator_single) {
     ASSERT_EQ(n, 1);
     ASSERT_STR_EQ(tokens[0], "override");
     for (int i = 0; i < n; i++)
-        free(tokens[i]);
+        CBM_FREE(tokens[i]);
     PASS();
 }
 
@@ -4989,7 +4990,7 @@ TEST(split_command_basic) {
     ASSERT_STR_EQ(args[3], "-o");
     ASSERT_STR_EQ(args[4], "main.o");
     for (int i = 0; i < n; i++)
-        free(args[i]);
+        CBM_FREE(args[i]);
     PASS();
 }
 
@@ -5000,7 +5001,7 @@ TEST(split_command_quoted) {
     ASSERT_GTE(n, 3);
     ASSERT_STR_EQ(args[0], "gcc");
     for (int i = 0; i < n; i++)
-        free(args[i]);
+        CBM_FREE(args[i]);
     PASS();
 }
 
@@ -5118,7 +5119,7 @@ TEST(fqn_compute_basic) {
     ASSERT_NOT_NULL(fqn);
     ASSERT_TRUE(strstr(fqn, "proj") != NULL);
     ASSERT_TRUE(strstr(fqn, "Serve") != NULL);
-    free(fqn);
+    CBM_FREE(fqn);
     PASS();
 }
 
@@ -5129,7 +5130,7 @@ TEST(fqn_compute_strips_ext) {
     /* Should not contain ".go" */
     ASSERT_TRUE(strstr(fqn, ".go") == NULL);
     ASSERT_TRUE(strstr(fqn, "main") != NULL);
-    free(fqn);
+    CBM_FREE(fqn);
     PASS();
 }
 
@@ -5138,7 +5139,7 @@ TEST(fqn_module_basic) {
     char *mod = cbm_pipeline_fqn_module("proj", "pkg/util/helper.go");
     ASSERT_NOT_NULL(mod);
     ASSERT_TRUE(strstr(mod, "proj") != NULL);
-    free(mod);
+    CBM_FREE(mod);
     PASS();
 }
 
@@ -5147,7 +5148,7 @@ TEST(fqn_folder_basic) {
     char *folder = cbm_pipeline_fqn_folder("proj", "pkg/util");
     ASSERT_NOT_NULL(folder);
     ASSERT_TRUE(strstr(folder, "proj") != NULL);
-    free(folder);
+    CBM_FREE(folder);
     PASS();
 }
 
@@ -5158,7 +5159,7 @@ TEST(project_name_special_chars) {
     /* Colons should be converted to dashes */
     ASSERT_TRUE(strchr(name, ':') == NULL);
     ASSERT_TRUE(strchr(name, '/') == NULL);
-    free(name);
+    CBM_FREE(name);
     PASS();
 }
 
@@ -5166,7 +5167,7 @@ TEST(project_name_trailing_slash) {
     /* Trailing slash should not affect result */
     char *a = cbm_project_name_from_path("/home/user/project");
     ASSERT_NOT_NULL(a);
-    free(a);
+    CBM_FREE(a);
     PASS();
 }
 

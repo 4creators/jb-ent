@@ -25,6 +25,7 @@
 #else
 #include <dirent.h>
 #include <unistd.h>
+#include "foundation/allocator.h"
 #endif
 
 /* ── Globals ─────────────────────────────────────────────────────── */
@@ -63,9 +64,9 @@ static int count_open_fds(void) {
         return CBM_NOT_FOUND;
     }
     for (int i = 0; i < n; i++) {
-        free(entries[i]);
+        CBM_FREE(entries[i]);
     }
-    free(entries);
+    CBM_FREE(entries);
     return n - PAIR_LEN; /* . and .. */
 #elif defined(__APPLE__)
     /* Count via /dev/fd using scandir (MT-safe) */
@@ -75,9 +76,9 @@ static int count_open_fds(void) {
         return CBM_NOT_FOUND;
     }
     for (int i = 0; i < n; i++) {
-        free(entries[i]);
+        CBM_FREE(entries[i]);
     }
-    free(entries);
+    CBM_FREE(entries);
     return n - PAIR_LEN; /* . and .. */
 #else
     return CBM_NOT_FOUND; /* Not available on Windows */

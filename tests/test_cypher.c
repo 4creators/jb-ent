@@ -9,6 +9,7 @@
 #include <store/store.h>
 #include <string.h>
 #include <stdlib.h>
+#include "foundation/allocator.h"
 
 /* ══════════════════════════════════════════════════════════════════
  *  LEXER TESTS
@@ -382,7 +383,7 @@ TEST(cypher_parse_error) {
     int rc = cbm_cypher_parse("INVALID QUERY", &q, &err);
     ASSERT_EQ(rc, -1);
     ASSERT_NOT_NULL(err);
-    free(err);
+    CBM_FREE(err);
     PASS();
 }
 
@@ -1504,7 +1505,7 @@ TEST(cypher_error_create) {
     ASSERT_EQ(rc, -1);
     ASSERT_NOT_NULL(err);
     ASSERT(strstr(err, "CREATE") != NULL);
-    free(err);
+    CBM_FREE(err);
     PASS();
 }
 
@@ -1515,7 +1516,7 @@ TEST(cypher_error_delete) {
     ASSERT_EQ(rc, -1);
     ASSERT_NOT_NULL(err);
     ASSERT(strstr(err, "DELETE") != NULL);
-    free(err);
+    CBM_FREE(err);
     PASS();
 }
 
@@ -1526,7 +1527,7 @@ TEST(cypher_error_set) {
     ASSERT_EQ(rc, -1);
     ASSERT_NOT_NULL(err);
     ASSERT(strstr(err, "SET") != NULL);
-    free(err);
+    CBM_FREE(err);
     PASS();
 }
 
@@ -1537,7 +1538,7 @@ TEST(cypher_error_merge) {
     ASSERT_EQ(rc, -1);
     ASSERT_NOT_NULL(err);
     ASSERT(strstr(err, "MERGE") != NULL);
-    free(err);
+    CBM_FREE(err);
     PASS();
 }
 
@@ -1548,7 +1549,7 @@ TEST(cypher_error_call) {
     ASSERT_EQ(rc, -1);
     ASSERT_NOT_NULL(err);
     ASSERT(strstr(err, "CALL") != NULL);
-    free(err);
+    CBM_FREE(err);
     PASS();
 }
 

@@ -23,7 +23,7 @@
 /* Build a dot-joined string from segments. Returns heap-allocated string. */
 static char *join_segments(const char **segments, int count) {
     if (count == 0) {
-        return strdup("");
+        return CBM_STRDUP("");
     }
     size_t total = 0;
     for (int i = 0; i < count; i++) {
@@ -32,7 +32,7 @@ static char *join_segments(const char **segments, int count) {
             total++; /* dot separator */
         }
     }
-    char *result = malloc(total + SKIP_ONE);
+    char *result = CBM_MALLOC(total + SKIP_ONE);
     if (!result) {
         return NULL;
     }
@@ -99,10 +99,10 @@ static void strip_init_or_index(const char **segments, int *seg_count, const cha
 
 char *cbm_pipeline_fqn_compute(const char *project, const char *rel_path, const char *name) {
     if (!project) {
-        return strdup("");
+        return CBM_STRDUP("");
     }
 
-    char *path = strdup(rel_path ? rel_path : "");
+    char *path = CBM_STRDUP(rel_path ? rel_path : "");
     cbm_normalize_path_sep(path);
     strip_file_extension(path);
 
@@ -118,7 +118,7 @@ char *cbm_pipeline_fqn_compute(const char *project, const char *rel_path, const 
     }
 
     char *result = join_segments(segments, seg_count);
-    free(path);
+    CBM_FREE(path);
     return result;
 }
 
@@ -222,7 +222,7 @@ static char *resolve_python_relative(char *buf, size_t buf_size, const char *mod
             p++;
         }
     }
-    return strdup(buf);
+    return CBM_STRDUP(buf);
 }
 
 /* Strip a trailing file extension from a segment (e.g. "helpers.ts" → "helpers").
@@ -271,7 +271,7 @@ static char *resolve_js_relative(char *buf, size_t buf_size, const char *module_
             return NULL;
         }
     }
-    return strdup(buf);
+    return CBM_STRDUP(buf);
 }
 
 char *cbm_pipeline_resolve_relative_import(const char *source_rel, const char *module_path) {
@@ -289,11 +289,11 @@ char *cbm_pipeline_resolve_relative_import(const char *source_rel, const char *m
 
 char *cbm_pipeline_fqn_folder(const char *project, const char *rel_dir) {
     if (!project) {
-        return strdup("");
+        return CBM_STRDUP("");
     }
 
     /* Work on mutable copy */
-    char *dir = strdup(rel_dir ? rel_dir : "");
+    char *dir = CBM_STRDUP(rel_dir ? rel_dir : "");
     cbm_normalize_path_sep(dir);
 
     const char *segments[CBM_SZ_256];
@@ -315,18 +315,19 @@ char *cbm_pipeline_fqn_folder(const char *project, const char *rel_dir) {
     }
 
     char *result = join_segments(segments, seg_count);
-    free(dir);
+    CBM_FREE(dir);
     return result;
 }
 
 #ifdef CBM_HASH_PROJECT_NAME
 #define XXH_INLINE_ALL
 #include "../../vendored/xxhash/xxhash.h"
+#include "foundation/allocator.h"
 #endif
 
 char *cbm_project_name_from_path(const char *abs_path) {
     if (!abs_path || !abs_path[0]) {
-        return strdup("root");
+        return CBM_STRDUP("root");
     }
 
 #ifdef CBM_HASH_PROJECT_NAME
@@ -356,7 +357,7 @@ char *cbm_project_name_from_path(const char *abs_path) {
                         end++;
                     }
                     *end = '\0';
-                    origin = strdup(url_ptr);
+                    origin = CBM_STRDUP(url_ptr);
                     break;
                 }
             }
@@ -366,20 +367,20 @@ char *cbm_project_name_from_path(const char *abs_path) {
 
     /* 2. Fallback: normalize the absolute path */
     if (!origin) {
-        origin = strdup(abs_path);
+        origin = CBM_STRDUP(abs_path);
         cbm_normalize_path_sep(origin);
     }
 
     /* 3. Hash to 64-bit and format as 16-char hex string */
     XXH64_hash_t hash = XXH64(origin, strlen(origin), 0);
-    free(origin);
+    CBM_FREE(origin);
 
     char hash_str[17];
     snprintf(hash_str, sizeof(hash_str), "%016llx", (unsigned long long)hash);
-    return strdup(hash_str);
+    return CBM_STRDUP(hash_str);
 #else
     /* Work on mutable copy */
-    char *path = strdup(abs_path);
+    char *path = CBM_STRDUP(abs_path);
     size_t len = strlen(path);
 
     /* Normalize path separators */
@@ -427,12 +428,12 @@ char *cbm_project_name_from_path(const char *abs_path) {
     }
 
     if (*start == '\0') {
-        free(path);
-        return strdup("root");
+        CBM_FREE(path);
+        return CBM_STRDUP("root");
     }
 
-    char *result = strdup(start);
-    free(path);
+    char *result = CBM_STRDUP(start);
+    CBM_FREE(path);
     return result;
 #endif
 }

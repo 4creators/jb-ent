@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "foundation/allocator.h"
 
 #define CBM_PAGE_SIZE 65536
 
@@ -306,7 +307,7 @@ static bool dynbuf_ensure(DynBuf *b, int needed) {
     while (newcap < b->len + needed) {
         newcap *= GROWTH_FACTOR;
     }
-    uint8_t *p = (uint8_t *)realloc(b->data, newcap);
+    uint8_t *p = (uint8_t *)CBM_REALLOC(b->data, newcap);
     if (!p) {
         (void)fprintf(stderr, "cbm_write_db: dynbuf realloc failed size=%d\n", newcap);
         return false;
@@ -332,7 +333,7 @@ static bool dynbuf_append(DynBuf *b, const void *data, int len) {
 }
 
 static void dynbuf_free(DynBuf *b) {
-    free(b->data);
+    CBM_FREE(b->data);
     b->data = NULL;
     b->len = b->cap = 0;
 }
@@ -411,7 +412,7 @@ static uint8_t *rec_finalize(RecordBuilder *r, int *out_len) {
     }
 
     int total = total_header + r->body.len;
-    uint8_t *buf = (uint8_t *)malloc(total);
+    uint8_t *buf = (uint8_t *)CBM_MALLOC(total);
     if (!buf) {
         return NULL;
     }
@@ -469,9 +470,9 @@ static void pb_init(PageBuilder *pb, FILE *fp, uint32_t start_page, bool is_inde
 static void pb_free(PageBuilder *pb) {
     if (pb->leaves) {
         for (int i = 0; i < pb->leaf_count; i++) {
-            free(pb->leaves[i].sep_cell);
+            CBM_FREE(pb->leaves[i].sep_cell);
         }
-        free(pb->leaves);
+        CBM_FREE(pb->leaves);
     }
 }
 
@@ -500,9 +501,9 @@ static void pb_flush_leaf(PageBuilder *pb) {
     if (pb->leaf_count >= pb->leaf_cap) {
         int old_cap = pb->leaf_cap;
         pb->leaf_cap = old_cap == 0 ? INITIAL_LEAF_CAP : old_cap * GROWTH_FACTOR;
-        void *tmp = realloc(pb->leaves, (size_t)pb->leaf_cap * sizeof(PageRef));
+        void *tmp = CBM_REALLOC(pb->leaves, (size_t)pb->leaf_cap * sizeof(PageRef));
         if (!tmp) {
-            free(pb->leaves);
+            CBM_FREE(pb->leaves);
             pb->leaves = NULL;
             return;
         }
@@ -569,7 +570,7 @@ static int build_interior_cell(const PageRef *child, bool is_index, uint8_t *cel
         return BTREE_PTR_SIZE + put_varint(cell_buf + BTREE_PTR_SIZE, child->max_key);
     }
     int clen = BTREE_PTR_SIZE + child->sep_cell_len;
-    uint8_t *data = (uint8_t *)malloc(clen);
+    uint8_t *data = (uint8_t *)CBM_MALLOC(clen);
     put_u32(data, child->page_num);
     memcpy(data + 4, child->sep_cell, child->sep_cell_len);
     *out_heap = data;
@@ -597,9 +598,9 @@ static int write_interior_page(PageBuilder *pb, uint8_t *page, int cell_count, i
     if (parent_count >= *parent_cap) {
         int old_pcap = *parent_cap;
         *parent_cap = old_pcap == 0 ? INITIAL_PARENT_CAP : old_pcap * GROWTH_FACTOR;
-        PageRef *tmp = (PageRef *)realloc(*parents, *parent_cap * sizeof(PageRef));
+        PageRef *tmp = (PageRef *)CBM_REALLOC(*parents, *parent_cap * sizeof(PageRef));
         if (!tmp) {
-            free(*parents);
+            CBM_FREE(*parents);
             *parents = NULL;
             return CBM_NOT_FOUND;
         }
@@ -611,7 +612,7 @@ static int write_interior_page(PageBuilder *pb, uint8_t *page, int cell_count, i
     (*parents)[parent_count].max_key = children[right_child_idx].max_key;
     if (is_index && children[right_child_idx].sep_cell) {
         int slen = children[right_child_idx].sep_cell_len;
-        (*parents)[parent_count].sep_cell = (uint8_t *)malloc(slen);
+        (*parents)[parent_count].sep_cell = (uint8_t *)CBM_MALLOC(slen);
         memcpy((*parents)[parent_count].sep_cell, children[right_child_idx].sep_cell, slen);
         (*parents)[parent_count].sep_cell_len = slen;
     } else {
@@ -625,9 +626,9 @@ static int write_interior_page(PageBuilder *pb, uint8_t *page, int cell_count, i
 static void free_children(PageRef *children, int child_count, const PageRef *leaves) {
     if (children != leaves) {
         for (int j = 0; j < child_count; j++) {
-            free(children[j].sep_cell);
+            CBM_FREE(children[j].sep_cell);
         }
-        free(children);
+        CBM_FREE(children);
     }
 }
 
@@ -644,7 +645,7 @@ static void fill_interior_page(uint8_t *page, const PageRef *children, int child
 
         int available = *content_offset - *ptr_offset - CELL_PTR_SIZE;
         if (clen > available && *cell_count > 0) {
-            free(heap_cell);
+            CBM_FREE(heap_cell);
             break;
         }
 
@@ -653,7 +654,7 @@ static void fill_interior_page(uint8_t *page, const PageRef *children, int child
         put_u16(page + *ptr_offset, (uint16_t)*content_offset);
         *ptr_offset += CELL_PTR_SIZE;
         (*cell_count)++;
-        free(heap_cell);
+        CBM_FREE(heap_cell);
         (*idx)++;
     }
 }
@@ -811,7 +812,7 @@ static uint8_t *build_table_cell(int64_t rowid, const uint8_t *payload, int payl
     int rl = varint_len(payload_len);
     int kl = varint_len(rowid);
     int total = rl + kl + payload_len;
-    uint8_t *cell = (uint8_t *)malloc(total);
+    uint8_t *cell = (uint8_t *)CBM_MALLOC(total);
     if (!cell) {
         return NULL;
     }
@@ -846,15 +847,15 @@ static uint8_t *build_index_entry_2text_rowid(const char *col1, const char *col2
     // Index cell: varint(payload_len) + payload
     int vl = varint_len(payload_len);
     int total = vl + payload_len;
-    uint8_t *cell = (uint8_t *)malloc(total);
+    uint8_t *cell = (uint8_t *)CBM_MALLOC(total);
     if (!cell) {
-        free(payload);
+        CBM_FREE(payload);
         *out_len = 0;
         return NULL;
     }
     int pos = put_varint(cell, payload_len);
     memcpy(cell + pos, payload, payload_len);
-    free(payload);
+    CBM_FREE(payload);
     *out_len = total;
     return cell;
 }
@@ -877,15 +878,15 @@ static uint8_t *build_index_entry_int_text_rowid(int64_t val, const char *text, 
 
     int vl = varint_len(payload_len);
     int total = vl + payload_len;
-    uint8_t *cell = (uint8_t *)malloc(total);
+    uint8_t *cell = (uint8_t *)CBM_MALLOC(total);
     if (!cell) {
-        free(payload);
+        CBM_FREE(payload);
         *out_len = 0;
         return NULL;
     }
     int pos = put_varint(cell, payload_len);
     memcpy(cell + pos, payload, payload_len);
-    free(payload);
+    CBM_FREE(payload);
     *out_len = total;
     return cell;
 }
@@ -909,15 +910,15 @@ static uint8_t *build_index_entry_text_int_text_rowid(const char *t1, int64_t va
 
     int vl = varint_len(payload_len);
     int total = vl + payload_len;
-    uint8_t *cell = (uint8_t *)malloc(total);
+    uint8_t *cell = (uint8_t *)CBM_MALLOC(total);
     if (!cell) {
-        free(payload);
+        CBM_FREE(payload);
         *out_len = 0;
         return NULL;
     }
     int pos = put_varint(cell, payload_len);
     memcpy(cell + pos, payload, payload_len);
-    free(payload);
+    CBM_FREE(payload);
     *out_len = total;
     return cell;
 }
@@ -943,15 +944,15 @@ static uint8_t *build_index_entry_unique_2int_text_rowid(int64_t v1, int64_t v2,
 
     int vlen = varint_len(payload_len);
     int total = vlen + payload_len;
-    uint8_t *cell = (uint8_t *)malloc(total);
+    uint8_t *cell = (uint8_t *)CBM_MALLOC(total);
     if (!cell) {
-        free(payload);
+        CBM_FREE(payload);
         *out_len = 0;
         return NULL;
     }
     int pos = put_varint(cell, payload_len);
     memcpy(cell + pos, payload, payload_len);
-    free(payload);
+    CBM_FREE(payload);
     *out_len = total;
     return cell;
 }
@@ -965,9 +966,9 @@ static bool pb_ensure_leaf_cap(PageBuilder *pb) {
         return true;
     }
     pb->leaf_cap = pb->leaf_cap == 0 ? INITIAL_LEAF_CAP : pb->leaf_cap * GROWTH_FACTOR;
-    void *tmp = realloc(pb->leaves, (size_t)pb->leaf_cap * sizeof(PageRef));
+    void *tmp = CBM_REALLOC(pb->leaves, (size_t)pb->leaf_cap * sizeof(PageRef));
     if (!tmp) {
-        free(pb->leaves);
+        CBM_FREE(pb->leaves);
         pb->leaves = NULL;
         return false;
     }
@@ -986,7 +987,7 @@ static void pb_add_table_cell_with_flush(PageBuilder *pb, int64_t rowid, const u
 
     if (!pb_cell_fits(pb, cell_len) && pb->cell_count > 0) {
         if (!pb_ensure_leaf_cap(pb)) {
-            free(cell);
+            CBM_FREE(cell);
             return;
         }
         pb->leaves[pb->leaf_count].max_key = prev_rowid;
@@ -996,7 +997,7 @@ static void pb_add_table_cell_with_flush(PageBuilder *pb, int64_t rowid, const u
     }
 
     pb_add_cell(pb, cell, cell_len);
-    free(cell);
+    CBM_FREE(cell);
 }
 
 // Finalize a table PageBuilder: flush last leaf and build interior pages.
@@ -1068,7 +1069,7 @@ static bool pb_promote_and_flush(PageBuilder *pb, uint8_t **cells, int *cell_len
         return false;
     }
     pb->leaves[pb->leaf_count].max_key = 0;
-    pb->leaves[pb->leaf_count].sep_cell = (uint8_t *)malloc(cell_lens[prev_idx]);
+    pb->leaves[pb->leaf_count].sep_cell = (uint8_t *)CBM_MALLOC(cell_lens[prev_idx]);
     memcpy(pb->leaves[pb->leaf_count].sep_cell, cells[prev_idx], cell_lens[prev_idx]);
     pb->leaves[pb->leaf_count].sep_cell_len = cell_lens[prev_idx];
 
@@ -1124,7 +1125,7 @@ static uint32_t write_index_btree(FILE *fp, uint32_t *next_page, uint8_t **cells
         }
         pb.leaves[pb.leaf_count].max_key = 0;
         int last = count - SKIP_ONE;
-        pb.leaves[pb.leaf_count].sep_cell = (uint8_t *)malloc(cell_lens[last]);
+        pb.leaves[pb.leaf_count].sep_cell = (uint8_t *)CBM_MALLOC(cell_lens[last]);
         memcpy(pb.leaves[pb.leaf_count].sep_cell, cells[last], cell_lens[last]);
         pb.leaves[pb.leaf_count].sep_cell_len = cell_lens[last];
         pb_flush_leaf(&pb);
@@ -1190,7 +1191,7 @@ static inline const char *safe_str(const char *s) {
 // Allocate permutation array [0, 1, ..., n-1], sort with comparator.
 // Returns NULL on allocation failure.
 static int *make_sorted_perm(int n, int (*cmp)(const void *, const void *)) {
-    int *perm = (int *)malloc(n * sizeof(int));
+    int *perm = (int *)CBM_MALLOC(n * sizeof(int));
     if (!perm) {
         (void)fprintf(stderr, "cbm_write_db: perm malloc failed n=%d size=%zu\n", n,
                       (size_t)n * sizeof(int));
@@ -1414,15 +1415,15 @@ static uint8_t *ecell_url_path(const CBMDumpEdge *e, int *out_len) {
     rec_free(&r);
     int vlen = varint_len(payload_len);
     int total = vlen + payload_len;
-    uint8_t *cell = (uint8_t *)malloc(total);
+    uint8_t *cell = (uint8_t *)CBM_MALLOC(total);
     if (!cell) {
-        free(payload);
+        CBM_FREE(payload);
         *out_len = 0;
         return NULL;
     }
     int pos = put_varint(cell, payload_len);
     memcpy(cell + pos, payload, payload_len);
-    free(payload);
+    CBM_FREE(payload);
     *out_len = total;
     return cell;
 }
@@ -1436,12 +1437,12 @@ static uint32_t build_edge_index_sorted(FILE *fp, uint32_t *next_page, CBMDumpEd
     if (!perm) {
         return 0;
     }
-    uint8_t **idx_cells = (uint8_t **)malloc(edge_count * sizeof(uint8_t *));
-    int *idx_lens = (int *)malloc(edge_count * sizeof(int));
+    uint8_t **idx_cells = (uint8_t **)CBM_MALLOC(edge_count * sizeof(uint8_t *));
+    int *idx_lens = (int *)CBM_MALLOC(edge_count * sizeof(int));
     if (!idx_cells || !idx_lens) {
-        free(perm);
-        free(idx_cells);
-        free(idx_lens);
+        CBM_FREE(perm);
+        CBM_FREE(idx_cells);
+        CBM_FREE(idx_lens);
         return 0;
     }
     for (int i = 0; i < edge_count; i++) {
@@ -1449,21 +1450,21 @@ static uint32_t build_edge_index_sorted(FILE *fp, uint32_t *next_page, CBMDumpEd
         idx_cells[i] = cell_fn(&edges[si], &idx_lens[i]);
         if (!idx_cells[i]) {
             for (int j = 0; j < i; j++) {
-                free(idx_cells[j]);
+                CBM_FREE(idx_cells[j]);
             }
-            free(idx_cells);
-            free(idx_lens);
-            free(perm);
+            CBM_FREE(idx_cells);
+            CBM_FREE(idx_lens);
+            CBM_FREE(perm);
             return 0;
         }
     }
-    free(perm);
+    CBM_FREE(perm);
     uint32_t root = write_index_btree(fp, next_page, idx_cells, idx_lens, edge_count);
     for (int i = 0; i < edge_count; i++) {
-        free(idx_cells[i]);
+        CBM_FREE(idx_cells[i]);
     }
-    free(idx_cells);
-    free(idx_lens);
+    CBM_FREE(idx_cells);
+    CBM_FREE(idx_lens);
     return root;
 }
 
@@ -1491,12 +1492,12 @@ static uint32_t build_node_index_sorted(FILE *fp, uint32_t *next_page, CBMDumpNo
     if (!perm) {
         return 0;
     }
-    uint8_t **idx_cells = (uint8_t **)malloc(node_count * sizeof(uint8_t *));
-    int *idx_lens = (int *)malloc(node_count * sizeof(int));
+    uint8_t **idx_cells = (uint8_t **)CBM_MALLOC(node_count * sizeof(uint8_t *));
+    int *idx_lens = (int *)CBM_MALLOC(node_count * sizeof(int));
     if (!idx_cells || !idx_lens) {
-        free(perm);
-        free(idx_cells);
-        free(idx_lens);
+        CBM_FREE(perm);
+        CBM_FREE(idx_cells);
+        CBM_FREE(idx_lens);
         return 0;
     }
     for (int i = 0; i < node_count; i++) {
@@ -1505,21 +1506,21 @@ static uint32_t build_node_index_sorted(FILE *fp, uint32_t *next_page, CBMDumpNo
                                                      nodes[si].id, &idx_lens[i]);
         if (!idx_cells[i]) {
             for (int j = 0; j < i; j++) {
-                free(idx_cells[j]);
+                CBM_FREE(idx_cells[j]);
             }
-            free(idx_cells);
-            free(idx_lens);
-            free(perm);
+            CBM_FREE(idx_cells);
+            CBM_FREE(idx_lens);
+            CBM_FREE(perm);
             return 0;
         }
     }
-    free(perm);
+    CBM_FREE(perm);
     uint32_t root = write_index_btree(fp, next_page, idx_cells, idx_lens, node_count);
     for (int i = 0; i < node_count; i++) {
-        free(idx_cells[i]);
+        CBM_FREE(idx_cells[i]);
     }
-    free(idx_cells);
-    free(idx_lens);
+    CBM_FREE(idx_cells);
+    CBM_FREE(idx_lens);
     return root;
 }
 
@@ -1564,7 +1565,7 @@ static int write_one_table(write_db_ctx_t *w, uint32_t *root, const void *items,
         int64_t rowid = get_id(items, i);
         int64_t prev_id = i > 0 ? get_id(items, i - SKIP_ONE) : 0;
         pb_add_table_cell_with_flush(&pb, rowid, rec, rec_len, prev_id);
-        free(rec);
+        CBM_FREE(rec);
     }
     *root = pb_finalize_table(&pb, &w->next_page, get_id(items, count - SKIP_ONE));
     return 0;
@@ -1630,7 +1631,7 @@ static void write_metadata_tables(write_db_ctx_t *w, uint32_t *projects_root,
     int64_t proj_rowids[] = {FIRST_ROWID};
     *projects_root =
         write_table_btree(w->fp, &w->next_page, proj_recs, proj_lens, proj_rowids, SKIP_ONE, false);
-    free(proj_rec);
+    CBM_FREE(proj_rec);
 
     *file_hashes_root = write_table_btree(w->fp, &w->next_page, NULL, NULL, NULL, 0, false);
     *summaries_root = write_table_btree(w->fp, &w->next_page, NULL, NULL, NULL, 0, false);
@@ -1656,8 +1657,8 @@ static void write_metadata_tables(write_db_ctx_t *w, uint32_t *projects_root,
     int64_t seq_rowids[] = {FIRST_ROWID, FIRST_DATA_PAGE};
     *sqlite_seq_root =
         write_table_btree(w->fp, &w->next_page, seq_recs, seq_lens, seq_rowids, PAIR_LEN, false);
-    free(seq1);
-    free(seq2);
+    CBM_FREE(seq1);
+    CBM_FREE(seq2);
 }
 
 /* Write the SQLite file header on page 1 with master entries. */
@@ -1689,9 +1690,9 @@ static void write_sqlite_file_header(uint8_t *page1, uint32_t total_pages) {
 
 /* Build master records, write page 1 B-tree + file header. */
 static int write_master_page1(FILE *fp, MasterEntry *master, int master_count, uint32_t next_page) {
-    const uint8_t **master_records = (const uint8_t **)malloc(master_count * sizeof(uint8_t *));
-    int *master_lens = (int *)malloc(master_count * sizeof(int));
-    int64_t *master_rowids = (int64_t *)malloc(master_count * sizeof(int64_t));
+    const uint8_t **master_records = (const uint8_t **)CBM_MALLOC(master_count * sizeof(uint8_t *));
+    int *master_lens = (int *)CBM_MALLOC(master_count * sizeof(int));
+    int64_t *master_rowids = (int64_t *)CBM_MALLOC(master_count * sizeof(int64_t));
     for (int i = 0; i < master_count; i++) {
         master_rowids[i] = i + SKIP_ONE;
         master_records[i] = build_master_record(&master[i], &master_lens[i]);
@@ -1711,13 +1712,13 @@ static int write_master_page1(FILE *fp, MasterEntry *master, int master_count, u
             build_table_cell(master_rowids[i], master_records[i], master_lens[i], &cell_len);
         int available = content_off - ptr_off - CELL_PTR_SIZE;
         if (!cell || cell_len > available) {
-            free(cell);
+            CBM_FREE(cell);
             for (int j = 0; j < master_count; j++) {
-                free((void *)master_records[j]);
+                CBM_FREE((void *)master_records[j]);
             }
-            free(master_records);
-            free(master_lens);
-            free(master_rowids);
+            CBM_FREE(master_records);
+            CBM_FREE(master_lens);
+            CBM_FREE(master_rowids);
             return ERR_MASTER_OVERFLOW;
         }
         content_off -= cell_len;
@@ -1725,7 +1726,7 @@ static int write_master_page1(FILE *fp, MasterEntry *master, int master_count, u
         put_u16(page1 + ptr_off, (uint16_t)content_off);
         ptr_off += CELL_PTR_SIZE;
         mcell_count++;
-        free(cell);
+        CBM_FREE(cell);
     }
 
     put_u16(page1 + hdr + HDR_FREEBLOCK_OFF, 0);
@@ -1739,11 +1740,11 @@ static int write_master_page1(FILE *fp, MasterEntry *master, int master_count, u
     (void)fwrite(page1, SKIP_ONE, CBM_PAGE_SIZE, fp);
 
     for (int i = 0; i < master_count; i++) {
-        free((void *)master_records[i]);
+        CBM_FREE((void *)master_records[i]);
     }
-    free(master_records);
-    free(master_lens);
-    free(master_rowids);
+    CBM_FREE(master_records);
+    CBM_FREE(master_lens);
+    CBM_FREE(master_rowids);
     return 0;
 }
 
@@ -1942,14 +1943,14 @@ int cbm_write_db(const char *path, const char *project, const char *root_path,
         rec_free(&r);
         int vl = varint_len(plen);
         int total = vl + plen;
-        uint8_t *cell = (uint8_t *)malloc(total);
+        uint8_t *cell = (uint8_t *)CBM_MALLOC(total);
         int pos = put_varint(cell, plen);
         memcpy(cell + pos, payload, plen);
-        free(payload);
+        CBM_FREE(payload);
         uint8_t *cells_arr[] = {cell};
         int lens_arr[] = {total};
         autoindex_projects_root = write_index_btree(fp, &next_page, cells_arr, lens_arr, SKIP_ONE);
-        free(cell);
+        CBM_FREE(cell);
     }
 
     // Autoindex for file_hashes(project, rel_path PK) — empty (0 rows)

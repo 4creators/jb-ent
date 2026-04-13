@@ -29,6 +29,7 @@
 #include <time.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
+#include "foundation/allocator.h"
 
 /* ── Per-project state ──────────────────────────────────────────── */
 
@@ -199,12 +200,12 @@ static int git_file_count(const char *root_path) {
 /* ── Project state lifecycle ────────────────────────────────────── */
 
 static project_state_t *state_new(const char *name, const char *root_path) {
-    project_state_t *s = calloc(CBM_ALLOC_ONE, sizeof(*s));
+    project_state_t *s = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*s));
     if (!s) {
         return NULL;
     }
-    s->project_name = strdup(name);
-    s->root_path = strdup(root_path);
+    s->project_name = CBM_STRDUP(name);
+    s->root_path = CBM_STRDUP(root_path);
     s->interval_ms = POLL_BASE_MS;
     return s;
 }
@@ -213,9 +214,9 @@ static void state_free(project_state_t *s) {
     if (!s) {
         return;
     }
-    free(s->project_name);
-    free(s->root_path);
-    free(s);
+    CBM_FREE(s->project_name);
+    CBM_FREE(s->root_path);
+    CBM_FREE(s);
 }
 
 /* Hash table foreach callback to free state entries */
@@ -228,7 +229,7 @@ static void free_state_entry(const char *key, void *val, void *ud) {
 /* ── Watcher lifecycle ──────────────────────────────────────────── */
 
 cbm_watcher_t *cbm_watcher_new(cbm_store_t *store, cbm_index_fn index_fn, void *user_data) {
-    cbm_watcher_t *w = calloc(CBM_ALLOC_ONE, sizeof(*w));
+    cbm_watcher_t *w = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*w));
     if (!w) {
         return NULL;
     }
@@ -246,7 +247,7 @@ void cbm_watcher_free(cbm_watcher_t *w) {
     }
     cbm_ht_foreach(w->projects, free_state_entry, NULL);
     cbm_ht_free(w->projects);
-    free(w);
+    CBM_FREE(w);
 }
 
 /* ── Watch list management ──────────────────────────────────────── */

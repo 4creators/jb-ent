@@ -17,6 +17,7 @@ enum { WP_TRUE = 1, WP_MIN = 1, WP_STEP = 1 };
 
 #include <stdatomic.h>
 #include <stdlib.h>
+#include "foundation/allocator.h"
 
 /* 8 MB stack per worker — matches main thread default.
  * Required for deep AST recursion (tree-sitter + walk_defs). */
@@ -61,7 +62,7 @@ static void run_pthreads(int count, cbm_parallel_fn fn, void *ctx, int nworkers)
         .count = count,
     };
 
-    cbm_thread_t *threads = (cbm_thread_t *)malloc((size_t)nworkers * sizeof(cbm_thread_t));
+    cbm_thread_t *threads = (cbm_thread_t *)CBM_MALLOC((size_t)nworkers * sizeof(cbm_thread_t));
     if (!threads) {
         run_serial(count, fn, ctx);
         return;
@@ -88,7 +89,7 @@ static void run_pthreads(int count, cbm_parallel_fn fn, void *ctx, int nworkers)
         cbm_thread_join(&threads[i]);
     }
 
-    free(threads);
+    CBM_FREE(threads);
 }
 
 /* ── Public API ──────────────────────────────────────────────────── */

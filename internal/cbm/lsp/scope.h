@@ -3,6 +3,7 @@
 
 #include "type_rep.h"
 #include "../arena.h"
+#include "foundation/allocator.h"
 
 // Variable binding in a scope.
 typedef struct {
@@ -22,7 +23,7 @@ typedef struct CBMScope {
 // Push a new scope (child of current). Returns the new scope.
 CBMScope* cbm_scope_push(CBMArena* a, CBMScope* current);
 
-// Pop scope: returns parent. Does NOT free (arena-allocated).
+// Pop scope: returns parent. Does NOT CBM_FREE(arena-allocated).
 CBMScope* cbm_scope_pop(CBMScope* scope);
 
 // Bind a variable in the current scope.

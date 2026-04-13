@@ -33,6 +33,7 @@ enum {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 static const char *itoa_log(int val) {
     static char bufs[PT_RING][CBM_SZ_32];
@@ -156,7 +157,7 @@ bool cbm_is_test_func_name(const char *name) {
 /* Assemble dir/name+ext into a heap-allocated path. */
 static char *build_path(const char *test_path, size_t dir_len, const char *name, size_t name_len,
                         const char *ext, size_t ext_len) {
-    char *result = malloc(dir_len + SKIP_ONE + name_len + ext_len + SKIP_ONE);
+    char *result = CBM_MALLOC(dir_len + SKIP_ONE + name_len + ext_len + SKIP_ONE);
     if (!result) {
         return NULL;
     }
@@ -173,7 +174,7 @@ static char *build_path(const char *test_path, size_t dir_len, const char *name,
 }
 
 /* Try to derive the production file path from a test file path.
- * Returns heap-allocated string or NULL. Caller must free(). */
+ * Returns heap-allocated string or NULL. Caller must CBM_FREE(). */
 static char *test_to_prod_path(const char *test_path) {
     if (!test_path) {
         return NULL;
@@ -274,8 +275,8 @@ static int create_tests_file_edges(cbm_pipeline_ctx_t *ctx) {
 
         char *prod_qn = cbm_pipeline_fqn_compute(ctx->project_name, prod_path, "__file__");
         const cbm_gbuf_node_t *prod_node = cbm_gbuf_find_by_qn(ctx->gbuf, prod_qn);
-        free(prod_qn);
-        free(prod_path);
+        CBM_FREE(prod_qn);
+        CBM_FREE(prod_path);
 
         if (prod_node && fnode->id != prod_node->id) {
             cbm_gbuf_insert_edge(ctx->gbuf, fnode->id, prod_node->id, "TESTS_FILE", "{}");

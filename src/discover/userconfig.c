@@ -23,6 +23,7 @@ enum { MAX_CONFIG_SIZE = 65536 };
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* ── Process-global user config pointer ──────────────────────────── */
 
@@ -207,13 +208,13 @@ static int parse_extra_extensions(yyjson_val *root, cbm_userext_t **entries, int
         }
 
         /* Grow the array */
-        cbm_userext_t *tmp = realloc(*entries, (size_t)(*count + SKIP_ONE) * sizeof(cbm_userext_t));
+        cbm_userext_t *tmp = CBM_REALLOC(*entries, (size_t)(*count + SKIP_ONE) * sizeof(cbm_userext_t));
         if (!tmp) {
             return CBM_NOT_FOUND;
         }
         *entries = tmp;
 
-        char *ext_copy = strdup(ext_str);
+        char *ext_copy = CBM_STRDUP(ext_str);
         if (!ext_copy) {
             return CBM_NOT_FOUND;
         }
@@ -254,7 +255,7 @@ static int load_config_file(const char *path, cbm_userext_t **entries, int *coun
         return 0;
     }
 
-    char *buf = malloc((size_t)len + SKIP_ONE);
+    char *buf = CBM_MALLOC((size_t)len + SKIP_ONE);
     if (!buf) {
         (void)fclose(f);
         return CBM_NOT_FOUND;
@@ -268,7 +269,7 @@ static int load_config_file(const char *path, cbm_userext_t **entries, int *coun
     buf[nread] = '\0';
 
     yyjson_doc *doc = yyjson_read(buf, nread, 0);
-    free(buf);
+    CBM_FREE(buf);
 
     if (!doc) {
         cbm_log_warn("userconfig.corrupt_json", "path", path);
@@ -284,7 +285,7 @@ static int load_config_file(const char *path, cbm_userext_t **entries, int *coun
 /* ── Public API ──────────────────────────────────────────────────── */
 
 cbm_userconfig_t *cbm_userconfig_load(const char *repo_path) {
-    cbm_userconfig_t *cfg = calloc(CBM_ALLOC_ONE, sizeof(cbm_userconfig_t));
+    cbm_userconfig_t *cfg = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_userconfig_t));
     if (!cfg) {
         return NULL;
     }
@@ -301,10 +302,10 @@ cbm_userconfig_t *cbm_userconfig_load(const char *repo_path) {
 
     if (load_config_file(global_path, &entries, &count) != 0) {
         for (int i = 0; i < count; i++) {
-            free(entries[i].ext);
+            CBM_FREE(entries[i].ext);
         }
-        free(entries);
-        free(cfg);
+        CBM_FREE(entries);
+        CBM_FREE(cfg);
         return NULL;
     }
 
@@ -318,10 +319,10 @@ cbm_userconfig_t *cbm_userconfig_load(const char *repo_path) {
         if (load_config_file(project_path, &entries, &count) != 0) {
             /* Free already-allocated entries */
             for (int i = 0; i < count; i++) {
-                free(entries[i].ext);
+                CBM_FREE(entries[i].ext);
             }
-            free(entries);
-            free(cfg);
+            CBM_FREE(entries);
+            CBM_FREE(cfg);
             return NULL;
         }
     }
@@ -337,7 +338,7 @@ cbm_userconfig_t *cbm_userconfig_load(const char *repo_path) {
         for (int g = 0; g < global_count; g++) {
             if (entries[g].ext && strcmp(entries[g].ext, entries[p].ext) == 0) {
                 /* Remove global entry: overwrite with last global entry */
-                free(entries[g].ext);
+                CBM_FREE(entries[g].ext);
                 entries[g] = entries[global_count - SKIP_ONE];
                 entries[global_count - SKIP_ONE].ext = NULL; /* mark as consumed */
                 global_count--;
@@ -380,8 +381,8 @@ void cbm_userconfig_free(cbm_userconfig_t *cfg) {
         return;
     }
     for (int i = 0; i < cfg->count; i++) {
-        free(cfg->entries[i].ext);
+        CBM_FREE(cfg->entries[i].ext);
     }
-    free(cfg->entries);
-    free(cfg);
+    CBM_FREE(cfg->entries);
+    CBM_FREE(cfg);
 }

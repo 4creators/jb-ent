@@ -9,7 +9,7 @@
  *   Matches tree-sitter SubtreeHeapData (64 bytes). O(1) alloc/free.
  *   Backed by 64KB slab pages (malloc = mimalloc in production).
  *
- * All allocations >64B go directly to malloc() which is mimalloc
+ * All allocations >64B go directly to CBM_MALLOC() which is mimalloc
  * in production builds (MI_OVERRIDE=1). This eliminates the complex
  * tier2 bump allocator and its O(n) ownership checks.
  *
@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* ── Tier 1: Fixed-size slab (≤64B) ──────────────────────────────── */
 
@@ -71,9 +72,9 @@ static void slab_rebuild_freelist(slab_state_t *s) {
 }
 
 /* Add a new page to the slab and prepend its chunks to the free list.
- * Pages are allocated via malloc (= mimalloc in production). */
+ * Pages are allocated via CBM_MALLOC(= mimalloc in production). */
 static bool slab_grow(slab_state_t *s) {
-    slab_page_t *page = (slab_page_t *)malloc(sizeof(slab_page_t));
+    slab_page_t *page = (slab_page_t *)CBM_MALLOC(sizeof(slab_page_t));
     if (!page) {
         return false;
     }
@@ -113,7 +114,7 @@ static void *slab_malloc(size_t size) {
         slab_state_t *s = &tls_slab;
         if (!s->freelist) {
             if (!slab_grow(s)) {
-                return malloc(size); /* fallback */
+                return CBM_MALLOC(size); /* fallback */
             }
         }
         slab_free_node_t *node = s->freelist;
@@ -121,8 +122,8 @@ static void *slab_malloc(size_t size) {
         return node;
     }
 
-    /* >64B: straight to malloc (= mimalloc in production) */
-    return malloc(size);
+    /* >64B: straight to CBM_MALLOC(= mimalloc in production) */
+    return CBM_MALLOC(size);
 }
 
 static void *slab_calloc(size_t count, size_t size) {
@@ -144,13 +145,13 @@ static void *slab_realloc(void *ptr, size_t new_size) {
         return slab_malloc(new_size);
     }
     if (new_size == 0) {
-        /* realloc(ptr, 0) = free + return NULL */
+        /* CBM_REALLOC(ptr, 0) = free + return NULL */
         if (slab_owns(&tls_slab, ptr)) {
             slab_free_node_t *node = (slab_free_node_t *)ptr;
             node->next = tls_slab.freelist;
             tls_slab.freelist = node;
         } else {
-            free(ptr);
+            CBM_FREE(ptr);
         }
         return NULL;
     }
@@ -162,7 +163,7 @@ static void *slab_realloc(void *ptr, size_t new_size) {
             return ptr;
         }
         /* Promote slab → heap */
-        void *new_ptr = malloc(new_size);
+        void *new_ptr = CBM_MALLOC(new_size);
         if (!new_ptr) {
             return NULL;
         }
@@ -175,7 +176,7 @@ static void *slab_realloc(void *ptr, size_t new_size) {
     }
 
     /* Case 2: heap pointer (from malloc) */
-    return realloc(ptr, new_size);
+    return CBM_REALLOC(ptr, new_size);
 }
 
 static void slab_free(void *ptr) {
@@ -190,7 +191,7 @@ static void slab_free(void *ptr) {
         return;
     }
     /* Heap fallback */
-    free(ptr);
+    CBM_FREE(ptr);
 }
 
 /* ── Public API ─────────────────────────────────────────────────── */
@@ -216,7 +217,7 @@ void cbm_slab_destroy_thread(void) {
     slab_page_t *p = s->pages;
     while (p) {
         slab_page_t *next = p->next;
-        free(p);
+        CBM_FREE(p);
         p = next;
     }
     s->pages = NULL;
@@ -234,7 +235,7 @@ void cbm_slab_reclaim(void) {
     slab_page_t *p = s->pages;
     while (p) {
         slab_page_t *next = p->next;
-        free(p);
+        CBM_FREE(p);
         p = next;
     }
     s->pages = NULL;

@@ -69,6 +69,7 @@ enum {
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#include "foundation/allocator.h"
 
 /* ── Constants ────────────────────────────────────────────────── */
 
@@ -93,7 +94,7 @@ static char *heap_strdup(const char *s) {
         return NULL;
     }
     size_t len = strlen(s);
-    char *d = malloc(len + SKIP_ONE);
+    char *d = CBM_MALLOC(len + SKIP_ONE);
     if (d) {
         memcpy(d, s, len + SKIP_ONE);
     }
@@ -163,9 +164,9 @@ void cbm_jsonrpc_request_free(cbm_jsonrpc_request_t *r) {
     if (!r) {
         return;
     }
-    free((void *)r->jsonrpc);
-    free((void *)r->method);
-    free((void *)r->params_raw);
+    CBM_FREE((void *)r->jsonrpc);
+    CBM_FREE((void *)r->method);
+    CBM_FREE((void *)r->params_raw);
     memset(r, 0, sizeof(*r));
 }
 
@@ -576,7 +577,7 @@ struct cbm_mcp_server {
 };
 
 cbm_mcp_server_t *cbm_mcp_server_new(const char *store_path) {
-    cbm_mcp_server_t *srv = calloc(CBM_ALLOC_ONE, sizeof(*srv));
+    cbm_mcp_server_t *srv = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*srv));
     if (!srv) {
         return NULL;
     }
@@ -602,7 +603,7 @@ void cbm_mcp_server_set_project(cbm_mcp_server_t *srv, const char *project) {
     if (!srv) {
         return;
     }
-    free(srv->current_project);
+    CBM_FREE(srv->current_project);
     srv->current_project = project ? heap_strdup(project) : NULL;
 }
 
@@ -631,8 +632,8 @@ void cbm_mcp_server_free(cbm_mcp_server_t *srv) {
     if (srv->owns_store && srv->store) {
         cbm_store_close(srv->store);
     }
-    free(srv->current_project);
-    free(srv);
+    CBM_FREE(srv->current_project);
+    CBM_FREE(srv);
 }
 
 /* ── Idle store eviction ──────────────────────────────────────── */
@@ -656,7 +657,7 @@ void cbm_mcp_server_evict_idle(cbm_mcp_server_t *srv, int timeout_s) {
         cbm_store_close(srv->store);
     }
     srv->store = NULL;
-    free(srv->current_project);
+    CBM_FREE(srv->current_project);
     srv->current_project = NULL;
     srv->store_last_used = 0;
 }
@@ -743,7 +744,7 @@ static cbm_store_t *resolve_store(cbm_mcp_server_t *srv, const char *project) {
         }
         cbm_project_free_fields(&proj_verify);
         srv->owns_store = true;
-        free(srv->current_project);
+        CBM_FREE(srv->current_project);
         srv->current_project = heap_strdup(project);
     }
 
@@ -782,7 +783,7 @@ static int collect_db_project_names(const char *dir_path, char *out, size_t out_
     return count;
 }
 
-/* Build a helpful error listing available projects. Caller must free() result. */
+/* Build a helpful error listing available projects. Caller must CBM_FREE() result. */
 static char *build_project_list_error(const char *reason) {
     char dir_path[CBM_SZ_1K];
     cache_dir(dir_path, sizeof(dir_path));
@@ -812,8 +813,8 @@ static char *build_project_list_error(const char *reason) {
         if (!(store)) {                                                                \
             char *_err = build_project_list_error("project not found or not indexed"); \
             char *_res = cbm_mcp_text_result(_err, true);                              \
-            free(_err);                                                                \
-            free(project);                                                             \
+            CBM_FREE(_err);                                                                \
+            CBM_FREE(project);                                                             \
             return _res;                                                               \
         }                                                                              \
     } while (0)
@@ -854,9 +855,9 @@ static void build_project_json_entry(yyjson_mut_doc *doc, yyjson_mut_val *arr, c
             if (proj.root_path) {
                 snprintf(root_path_buf, sizeof(root_path_buf), "%s", proj.root_path);
             }
-            free((void *)proj.name);
-            free((void *)proj.indexed_at);
-            free((void *)proj.root_path);
+            CBM_FREE((void *)proj.name);
+            CBM_FREE((void *)proj.indexed_at);
+            CBM_FREE((void *)proj.root_path);
         }
         cbm_store_close(pstore);
     }
@@ -911,7 +912,7 @@ static char *handle_list_projects(cbm_mcp_server_t *srv, const char *args) {
     yyjson_mut_doc_free(doc);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -921,7 +922,7 @@ static char *handle_list_projects(cbm_mcp_server_t *srv, const char *args) {
  * store is NULL for missing .db files (REQUIRE_STORE fires first). This
  * function catches the remaining case: a .db file exists but has no indexed
  * nodes (e.g., an empty or half-initialised project).
- * Callers that receive a non-NULL return value must free(project) themselves
+ * Callers that receive a non-NULL return value must CBM_FREE(project) themselves
  * before returning the error string. */
 static char *verify_project_indexed(cbm_store_t *store, const char *project) {
     cbm_project_t proj_check = {0};
@@ -940,7 +941,7 @@ static char *handle_get_graph_schema(cbm_mcp_server_t *srv, const char *args) {
 
     char *not_indexed = verify_project_indexed(store, project);
     if (not_indexed) {
-        free(project);
+        CBM_FREE(project);
         return not_indexed;
     }
 
@@ -989,10 +990,10 @@ static char *handle_get_graph_schema(cbm_mcp_server_t *srv, const char *args) {
     char *json = yy_doc_to_str(doc);
     yyjson_mut_doc_free(doc);
     cbm_store_schema_free(&schema);
-    free(project);
+    CBM_FREE(project);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -1311,7 +1312,7 @@ static char *handle_search_graph(cbm_mcp_server_t *srv, const char *args) {
 
     char *not_indexed = verify_project_indexed(store, project);
     if (not_indexed) {
-        free(project);
+        CBM_FREE(project);
         return not_indexed;
     }
 
@@ -1325,14 +1326,14 @@ static char *handle_search_graph(cbm_mcp_server_t *srv, const char *args) {
         int q_offset = cbm_mcp_get_int_arg(args, "offset", 0);
         char *bm25_json = bm25_search(store, project, query, q_limit, q_offset);
         if (bm25_json) {
-            free(query);
-            free(project);
+            CBM_FREE(query);
+            CBM_FREE(project);
             char *result = cbm_mcp_text_result(bm25_json, false);
-            free(bm25_json);
+            CBM_FREE(bm25_json);
             return result;
         }
     }
-    free(query);
+    CBM_FREE(query);
 
     char *label = cbm_mcp_get_string_arg(args, "label");
     char *name_pattern = cbm_mcp_get_string_arg(args, "name_pattern");
@@ -1347,12 +1348,12 @@ static char *handle_search_graph(cbm_mcp_server_t *srv, const char *args) {
     int max_degree = cbm_mcp_get_int_arg(args, "max_degree", CBM_NOT_FOUND);
 
     if (relationship && !validate_edge_type(relationship)) {
-        free(project);
-        free(label);
-        free(name_pattern);
-        free(qn_pattern);
-        free(file_pattern);
-        free(relationship);
+        CBM_FREE(project);
+        CBM_FREE(label);
+        CBM_FREE(name_pattern);
+        CBM_FREE(qn_pattern);
+        CBM_FREE(file_pattern);
+        CBM_FREE(relationship);
         return cbm_mcp_text_result("relationship must be uppercase letters and underscores", true);
     }
 
@@ -1384,12 +1385,12 @@ static char *handle_search_graph(cbm_mcp_server_t *srv, const char *args) {
     if (sq_type_error) {
         yyjson_mut_doc_free(doc);
         cbm_store_search_free(&out);
-        free(project);
-        free(label);
-        free(name_pattern);
-        free(qn_pattern);
-        free(file_pattern);
-        free(relationship);
+        CBM_FREE(project);
+        CBM_FREE(label);
+        CBM_FREE(name_pattern);
+        CBM_FREE(qn_pattern);
+        CBM_FREE(file_pattern);
+        CBM_FREE(relationship);
         return cbm_mcp_text_result(
             "semantic_query must be an array of keyword strings, e.g. "
             "[\"send\",\"pubsub\",\"publish\"] — not a single string. Split your query "
@@ -1402,15 +1403,15 @@ static char *handle_search_graph(cbm_mcp_server_t *srv, const char *args) {
     yyjson_mut_doc_free(doc);
     cbm_store_search_free(&out);
 
-    free(project);
-    free(label);
-    free(name_pattern);
-    free(qn_pattern);
-    free(file_pattern);
-    free(relationship);
+    CBM_FREE(project);
+    CBM_FREE(label);
+    CBM_FREE(name_pattern);
+    CBM_FREE(qn_pattern);
+    CBM_FREE(file_pattern);
+    CBM_FREE(relationship);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -1421,22 +1422,22 @@ static char *handle_query_graph(cbm_mcp_server_t *srv, const char *args) {
     int max_rows = cbm_mcp_get_int_arg(args, "max_rows", 0);
 
     if (!query) {
-        free(project);
+        CBM_FREE(project);
         return cbm_mcp_text_result("query is required", true);
     }
     if (!store) {
         char *_err = build_project_list_error("project not found or not indexed");
         char *_res = cbm_mcp_text_result(_err, true);
-        free(_err);
-        free(project);
-        free(query);
+        CBM_FREE(_err);
+        CBM_FREE(project);
+        CBM_FREE(query);
         return _res;
     }
 
     char *not_indexed = verify_project_indexed(store, project);
     if (not_indexed) {
-        free(project);
-        free(query);
+        CBM_FREE(project);
+        CBM_FREE(query);
         return not_indexed;
     }
 
@@ -1447,8 +1448,8 @@ static char *handle_query_graph(cbm_mcp_server_t *srv, const char *args) {
         char *err_msg = result.error ? result.error : "query execution failed";
         char *resp = cbm_mcp_text_result(err_msg, true);
         cbm_cypher_result_free(&result);
-        free(query);
-        free(project);
+        CBM_FREE(query);
+        CBM_FREE(project);
         return resp;
     }
 
@@ -1478,11 +1479,11 @@ static char *handle_query_graph(cbm_mcp_server_t *srv, const char *args) {
     char *json = yy_doc_to_str(doc);
     yyjson_mut_doc_free(doc);
     cbm_cypher_result_free(&result);
-    free(query);
-    free(project);
+    CBM_FREE(query);
+    CBM_FREE(project);
 
     char *res = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return res;
 }
 
@@ -1508,10 +1509,10 @@ static char *handle_index_status(cbm_mcp_server_t *srv, const char *args) {
 
     char *json = yy_doc_to_str(doc);
     yyjson_mut_doc_free(doc);
-    free(project);
+    CBM_FREE(project);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -1528,7 +1529,7 @@ static char *handle_delete_project(cbm_mcp_server_t *srv, const char *args) {
             cbm_store_close(srv->store);
             srv->store = NULL;
         }
-        free(srv->current_project);
+        CBM_FREE(srv->current_project);
         srv->current_project = NULL;
     }
 
@@ -1564,10 +1565,10 @@ static char *handle_delete_project(cbm_mcp_server_t *srv, const char *args) {
 
     char *json = yy_doc_to_str(doc);
     yyjson_mut_doc_free(doc);
-    free(name);
+    CBM_FREE(name);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -1596,7 +1597,7 @@ static char *handle_get_architecture(cbm_mcp_server_t *srv, const char *args) {
 
     char *not_indexed = verify_project_indexed(store, project);
     if (not_indexed) {
-        free(project);
+        CBM_FREE(project);
         return not_indexed;
     }
 
@@ -1671,10 +1672,10 @@ static char *handle_get_architecture(cbm_mcp_server_t *srv, const char *args) {
     if (aspects_doc) {
         yyjson_doc_free(aspects_doc);
     }
-    free(project);
+    CBM_FREE(project);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -1777,31 +1778,31 @@ static char *handle_trace_call_path(cbm_mcp_server_t *srv, const char *args) {
     bool include_tests = cbm_mcp_get_bool_arg(args, "include_tests");
 
     if (!func_name) {
-        free(project);
-        free(direction);
-        free(mode);
-        free(param_name);
+        CBM_FREE(project);
+        CBM_FREE(direction);
+        CBM_FREE(mode);
+        CBM_FREE(param_name);
         return cbm_mcp_text_result("function_name is required", true);
     }
     if (!store) {
         char *_err = build_project_list_error("project not found or not indexed");
         char *_res = cbm_mcp_text_result(_err, true);
-        free(_err);
-        free(func_name);
-        free(project);
-        free(direction);
-        free(mode);
-        free(param_name);
+        CBM_FREE(_err);
+        CBM_FREE(func_name);
+        CBM_FREE(project);
+        CBM_FREE(direction);
+        CBM_FREE(mode);
+        CBM_FREE(param_name);
         return _res;
     }
 
     char *not_indexed = verify_project_indexed(store, project);
     if (not_indexed) {
-        free(func_name);
-        free(project);
-        free(direction);
-        free(mode);
-        free(param_name);
+        CBM_FREE(func_name);
+        CBM_FREE(project);
+        CBM_FREE(direction);
+        CBM_FREE(mode);
+        CBM_FREE(param_name);
         return not_indexed;
     }
 
@@ -1815,11 +1816,11 @@ static char *handle_trace_call_path(cbm_mcp_server_t *srv, const char *args) {
     cbm_store_find_nodes_by_name(store, project, func_name, &nodes, &node_count);
 
     if (node_count == 0) {
-        free(func_name);
-        free(project);
-        free(direction);
-        free(mode);
-        free(param_name);
+        CBM_FREE(func_name);
+        CBM_FREE(project);
+        CBM_FREE(direction);
+        CBM_FREE(mode);
+        CBM_FREE(param_name);
         cbm_store_free_nodes(nodes, 0);
         return cbm_mcp_text_result("{\"error\":\"function not found\"}", true);
     }
@@ -1875,29 +1876,29 @@ static char *handle_trace_call_path(cbm_mcp_server_t *srv, const char *args) {
     }
 
     cbm_store_free_nodes(nodes, node_count);
-    free(func_name);
-    free(project);
-    free(direction);
-    free(mode);
-    free(param_name);
+    CBM_FREE(func_name);
+    CBM_FREE(project);
+    CBM_FREE(direction);
+    CBM_FREE(mode);
+    CBM_FREE(param_name);
     if (et_doc_keep) {
         yyjson_doc_free(et_doc_keep);
     }
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
 /* ── Helper: free heap fields of a stack-allocated node ────────── */
 
 static void free_node_contents(cbm_node_t *n) {
-    free((void *)n->project);
-    free((void *)n->label);
-    free((void *)n->name);
-    free((void *)n->qualified_name);
-    free((void *)n->file_path);
-    free((void *)n->properties_json);
+    CBM_FREE((void *)n->project);
+    CBM_FREE((void *)n->label);
+    CBM_FREE((void *)n->name);
+    CBM_FREE((void *)n->qualified_name);
+    CBM_FREE((void *)n->file_path);
+    CBM_FREE((void *)n->properties_json);
     memset(n, 0, sizeof(*n));
 }
 
@@ -1910,7 +1911,7 @@ static char *read_file_lines(const char *path, int start, int end) {
     }
 
     size_t cap = CBM_SZ_4K;
-    char *buf = malloc(cap);
+    char *buf = CBM_MALLOC(cap);
     size_t len = 0;
     buf[0] = '\0';
 
@@ -1936,7 +1937,7 @@ static char *read_file_lines(const char *path, int start, int end) {
 
     (void)fclose(fp);
     if (len == 0) {
-        free(buf);
+        CBM_FREE(buf);
         return NULL;
     }
     return buf;
@@ -1957,9 +1958,9 @@ static char *get_project_root(cbm_mcp_server_t *srv, const char *project) {
         return NULL;
     }
     char *root = heap_strdup(proj.root_path);
-    free((void *)proj.name);
-    free((void *)proj.indexed_at);
-    free((void *)proj.root_path);
+    CBM_FREE((void *)proj.name);
+    CBM_FREE((void *)proj.indexed_at);
+    CBM_FREE((void *)proj.root_path);
     return root;
 }
 
@@ -1971,7 +1972,7 @@ static char *handle_index_repository(cbm_mcp_server_t *srv, const char *args) {
     cbm_normalize_path_sep(repo_path);
 
     if (!repo_path) {
-        free(mode_str);
+        CBM_FREE(mode_str);
         return cbm_mcp_text_result("repo_path is required", true);
     }
 
@@ -1981,11 +1982,11 @@ static char *handle_index_repository(cbm_mcp_server_t *srv, const char *args) {
     } else if (mode_str && strcmp(mode_str, "moderate") == 0) {
         mode = CBM_MODE_MODERATE;
     }
-    free(mode_str);
+    CBM_FREE(mode_str);
 
     cbm_pipeline_t *p = cbm_pipeline_new(repo_path, NULL, mode);
     if (!p) {
-        free(repo_path);
+        CBM_FREE(repo_path);
         return cbm_mcp_text_result("failed to create pipeline", true);
     }
 
@@ -1996,7 +1997,7 @@ static char *handle_index_repository(cbm_mcp_server_t *srv, const char *args) {
         cbm_store_close(srv->store);
         srv->store = NULL;
     }
-    free(srv->current_project);
+    CBM_FREE(srv->current_project);
     srv->current_project = NULL;
 
     /* Serialize pipeline runs to prevent concurrent writes */
@@ -2012,7 +2013,7 @@ static char *handle_index_repository(cbm_mcp_server_t *srv, const char *args) {
         cbm_store_close(srv->store);
         srv->store = NULL;
     }
-    free(srv->current_project);
+    CBM_FREE(srv->current_project);
     srv->current_project = NULL;
 
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
@@ -2048,11 +2049,11 @@ static char *handle_index_repository(cbm_mcp_server_t *srv, const char *args) {
 
     char *json = yy_doc_to_str(doc);
     yyjson_mut_doc_free(doc);
-    free(project_name);
-    free(repo_path);
+    CBM_FREE(project_name);
+    CBM_FREE(repo_path);
 
     char *result = cbm_mcp_text_result(json, rc != 0);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -2102,7 +2103,7 @@ static char *snippet_suggestions(const char *input, cbm_node_t *nodes, int count
     yyjson_mut_doc_free(doc);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -2154,7 +2155,7 @@ static char *resolve_snippet_source(const char *root_path, const char *file_path
         return NULL;
     }
     size_t apsz = strlen(root_path) + strlen(file_path) + MCP_SEPARATOR;
-    char *abs_path = malloc(apsz);
+    char *abs_path = CBM_MALLOC(apsz);
     snprintf(abs_path, apsz, "%s/%s", root_path, file_path);
 
     char real_root[CBM_SZ_4K];
@@ -2276,19 +2277,19 @@ static char *build_snippet_response(cbm_mcp_server_t *srv, cbm_node_t *node,
     yyjson_mut_doc_free(doc);
     yyjson_doc_free(props_doc); /* safe if NULL */
     for (int i = 0; i < nb_caller_count; i++) {
-        free(nb_callers[i]);
+        CBM_FREE(nb_callers[i]);
     }
     for (int i = 0; i < nb_callee_count; i++) {
-        free(nb_callees[i]);
+        CBM_FREE(nb_callees[i]);
     }
-    free(nb_callers);
-    free(nb_callees);
-    free(root_path);
-    free(abs_path);
-    free(source);
+    CBM_FREE(nb_callers);
+    CBM_FREE(nb_callees);
+    CBM_FREE(root_path);
+    CBM_FREE(abs_path);
+    CBM_FREE(source);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -2298,7 +2299,7 @@ static char *handle_get_code_snippet(cbm_mcp_server_t *srv, const char *args) {
     bool include_neighbors = cbm_mcp_get_bool_arg(args, "include_neighbors");
 
     if (!qn) {
-        free(project);
+        CBM_FREE(project);
         return cbm_mcp_text_result("qualified_name is required", true);
     }
 
@@ -2306,16 +2307,16 @@ static char *handle_get_code_snippet(cbm_mcp_server_t *srv, const char *args) {
     if (!store) {
         char *_err = build_project_list_error("project not found or not indexed");
         char *_res = cbm_mcp_text_result(_err, true);
-        free(_err);
-        free(qn);
-        free(project);
+        CBM_FREE(_err);
+        CBM_FREE(qn);
+        CBM_FREE(project);
         return _res;
     }
 
     char *not_indexed = verify_project_indexed(store, project);
     if (not_indexed) {
-        free(qn);
-        free(project);
+        CBM_FREE(qn);
+        CBM_FREE(project);
         return not_indexed;
     }
 
@@ -2328,8 +2329,8 @@ static char *handle_get_code_snippet(cbm_mcp_server_t *srv, const char *args) {
     if (rc == CBM_STORE_OK) {
         char *result = build_snippet_response(srv, &node, NULL, include_neighbors, NULL, 0);
         free_node_contents(&node);
-        free(qn);
-        free(project);
+        CBM_FREE(qn);
+        CBM_FREE(project);
         return result;
     }
 
@@ -2344,22 +2345,22 @@ static char *handle_get_code_snippet(cbm_mcp_server_t *srv, const char *args) {
         cbm_store_free_nodes(suffix_nodes, suffix_count);
         char *result = build_snippet_response(srv, &node, "suffix", include_neighbors, NULL, 0);
         free_node_contents(&node);
-        free(qn);
-        free(project);
+        CBM_FREE(qn);
+        CBM_FREE(project);
         return result;
     }
 
     if (suffix_count > SKIP_ONE) {
         char *result = snippet_suggestions(qn, suffix_nodes, suffix_count);
         cbm_store_free_nodes(suffix_nodes, suffix_count);
-        free(qn);
-        free(project);
+        CBM_FREE(qn);
+        CBM_FREE(project);
         return result;
     }
 
     cbm_store_free_nodes(suffix_nodes, suffix_count);
-    free(qn);
-    free(project);
+    CBM_FREE(qn);
+    CBM_FREE(project);
 
     /* Nothing found — guide the caller toward search_graph */
     return cbm_mcp_text_result(
@@ -2505,7 +2506,7 @@ static void attach_result_source(yyjson_mut_doc *doc, yyjson_mut_val *item, sear
         if (source) {
             sanitize_ascii(source);
             yyjson_mut_obj_add_strcpy(doc, item, "source", source);
-            free(source);
+            CBM_FREE(source);
         }
     } else if (context_lines > 0 && r->match_count > 0) {
         int ctx_start = r->match_lines[0] - context_lines;
@@ -2518,7 +2519,7 @@ static void attach_result_source(yyjson_mut_doc *doc, yyjson_mut_val *item, sear
             sanitize_ascii(ctx);
             yyjson_mut_obj_add_strcpy(doc, item, "context", ctx);
             yyjson_mut_obj_add_int(doc, item, "context_start", ctx_start);
-            free(ctx);
+            CBM_FREE(ctx);
         }
     }
 }
@@ -2638,7 +2639,7 @@ static char *assemble_search_output(search_result_t *sr, int sr_count, grep_matc
     yyjson_mut_doc_free(doc);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -2661,7 +2662,7 @@ static grep_match_t *collect_grep_matches(FILE *fp, const char *root_path, size_
                                           int grep_limit, int *out_count) {
     int gm_cap = CBM_SZ_64;
     int gm_count = 0;
-    grep_match_t *gm = malloc(gm_cap * sizeof(grep_match_t));
+    grep_match_t *gm = CBM_MALLOC(gm_cap * sizeof(grep_match_t));
     char line[CBM_SZ_2K];
 
     while (fgets(line, sizeof(line), fp) && gm_count < grep_limit) {
@@ -2775,14 +2776,14 @@ static void classify_grep_hit(grep_match_t *hit, cbm_node_t *file_nodes, int fil
 /* Free a file_nodes array returned from cbm_store_find_nodes_by_file. */
 static void free_file_nodes(cbm_node_t *nodes, int count) {
     for (int j = 0; j < count; j++) {
-        free((void *)nodes[j].project);
-        free((void *)nodes[j].label);
-        free((void *)nodes[j].name);
-        free((void *)nodes[j].qualified_name);
-        free((void *)nodes[j].file_path);
-        free((void *)nodes[j].properties_json);
+        CBM_FREE((void *)nodes[j].project);
+        CBM_FREE((void *)nodes[j].label);
+        CBM_FREE((void *)nodes[j].name);
+        CBM_FREE((void *)nodes[j].qualified_name);
+        CBM_FREE((void *)nodes[j].file_path);
+        CBM_FREE((void *)nodes[j].properties_json);
     }
-    free(nodes);
+    CBM_FREE(nodes);
 }
 
 /* Classify all grep matches file-by-file into search results and raw hits. */
@@ -2833,9 +2834,9 @@ static bool write_scoped_filelist(cbm_mcp_server_t *srv, const char *project, co
         ok = true;
     }
     for (int fi = 0; fi < indexed_count; fi++) {
-        free(indexed_files[fi]);
+        CBM_FREE(indexed_files[fi]);
     }
-    free(indexed_files);
+    CBM_FREE(indexed_files);
     return ok;
 }
 
@@ -2899,55 +2900,55 @@ static char *handle_search_code(cbm_mcp_server_t *srv, const char *args) {
     bool use_regex = cbm_mcp_get_bool_arg(args, "regex");
 
     int mode = parse_search_mode(mode_str);
-    free(mode_str);
+    CBM_FREE(mode_str);
 
     cbm_regex_t path_regex;
     bool has_path_filter = compile_path_filter(path_filter, &path_regex);
-    free(path_filter);
+    CBM_FREE(path_filter);
     path_filter = NULL;
 
     if (!pattern) {
-        free(project);
-        free(file_pattern);
+        CBM_FREE(project);
+        CBM_FREE(file_pattern);
         return cbm_mcp_text_result("pattern is required", true);
     }
 
     /* Project is required */
     if (!project) {
-        free(pattern);
-        free(file_pattern);
+        CBM_FREE(pattern);
+        CBM_FREE(file_pattern);
         char *_err = build_project_list_error("project is required");
         char *_res = cbm_mcp_text_result(_err, true);
-        free(_err);
+        CBM_FREE(_err);
         return _res;
     }
 
     char *root_path = get_project_root(srv, project);
     if (!root_path) {
-        free(pattern);
-        free(project);
-        free(file_pattern);
+        CBM_FREE(pattern);
+        CBM_FREE(project);
+        CBM_FREE(file_pattern);
         char *_err = build_project_list_error("project not found or not indexed");
         char *_res = cbm_mcp_text_result(_err, true);
-        free(_err);
+        CBM_FREE(_err);
         return _res;
     }
 
     if (!validate_search_args(root_path, file_pattern)) {
-        free(root_path);
-        free(pattern);
-        free(project);
-        free(file_pattern);
+        CBM_FREE(root_path);
+        CBM_FREE(pattern);
+        CBM_FREE(project);
+        CBM_FREE(file_pattern);
         return cbm_mcp_text_result("path or file_pattern contains invalid characters", true);
     }
 
     /* ── Phase 1: Grep scan ──────────────────────────────────── */
     char tmpfile[CBM_SZ_256];
     if (!write_pattern_file(tmpfile, sizeof(tmpfile), pattern)) {
-        free(root_path);
-        free(pattern);
-        free(project);
-        free(file_pattern);
+        CBM_FREE(root_path);
+        CBM_FREE(pattern);
+        CBM_FREE(project);
+        CBM_FREE(file_pattern);
         return cbm_mcp_text_result("search failed: temp file", true);
     }
 
@@ -2976,10 +2977,10 @@ static char *handle_search_code(cbm_mcp_server_t *srv, const char *args) {
         if (scoped) {
             cbm_unlink(filelist);
         }
-        free(root_path);
-        free(pattern);
-        free(project);
-        free(file_pattern);
+        CBM_FREE(root_path);
+        CBM_FREE(pattern);
+        CBM_FREE(project);
+        CBM_FREE(file_pattern);
         return cbm_mcp_text_result("search failed", true);
     }
 
@@ -3001,11 +3002,11 @@ static char *handle_search_code(cbm_mcp_server_t *srv, const char *args) {
 
     int sr_cap = CBM_SZ_32;
     int sr_count = 0;
-    search_result_t *sr = calloc(sr_cap, sizeof(search_result_t));
+    search_result_t *sr = CBM_CALLOC(sr_cap, sizeof(search_result_t));
 
     int raw_cap = CBM_SZ_32;
     int raw_count = 0;
-    grep_match_t *raw = malloc(raw_cap * sizeof(grep_match_t));
+    grep_match_t *raw = CBM_MALLOC(raw_cap * sizeof(grep_match_t));
 
     /* Sort matches by file path for contiguous per-file processing */
     qsort(gm, gm_count, sizeof(grep_match_t), (int (*)(const void *, const void *))strcmp);
@@ -3015,9 +3016,9 @@ static char *handle_search_code(cbm_mcp_server_t *srv, const char *args) {
 
     /* Phase 3: batch degree query — ONE query for all results instead of 2×N */
     if (store && sr_count > 0) {
-        int64_t *ids = malloc(sr_count * sizeof(int64_t));
-        int *in_degs = malloc(sr_count * sizeof(int));
-        int *out_degs = malloc(sr_count * sizeof(int));
+        int64_t *ids = CBM_MALLOC(sr_count * sizeof(int64_t));
+        int *in_degs = CBM_MALLOC(sr_count * sizeof(int));
+        int *out_degs = CBM_MALLOC(sr_count * sizeof(int));
         for (int j = 0; j < sr_count; j++) {
             ids[j] = sr[j].node_id;
         }
@@ -3028,9 +3029,9 @@ static char *handle_search_code(cbm_mcp_server_t *srv, const char *args) {
                 sr[j].out_degree = out_degs[j];
             }
         }
-        free(ids);
-        free(in_degs);
-        free(out_degs);
+        CBM_FREE(ids);
+        CBM_FREE(in_degs);
+        CBM_FREE(out_degs);
     }
 
     /* Compute scores and sort */
@@ -3045,13 +3046,13 @@ static char *handle_search_code(cbm_mcp_server_t *srv, const char *args) {
 
     char *result = assemble_search_output(sr, sr_count, raw, raw_count, gm_count, limit, mode,
                                           context_lines, root_path);
-    free(gm);
-    free(sr);
-    free(raw);
-    free(root_path);
-    free(pattern);
-    free(project);
-    free(file_pattern);
+    CBM_FREE(gm);
+    CBM_FREE(sr);
+    CBM_FREE(raw);
+    CBM_FREE(root_path);
+    CBM_FREE(pattern);
+    CBM_FREE(project);
+    CBM_FREE(file_pattern);
     if (has_path_filter) {
         cbm_regfree(&path_regex);
     }
@@ -3094,25 +3095,25 @@ static char *handle_detect_changes(cbm_mcp_server_t *srv, const char *args) {
 
     /* Reject shell metacharacters in user-supplied branch name */
     if (!cbm_validate_shell_arg(base_branch)) {
-        free(project);
-        free(base_branch);
-        free(scope);
+        CBM_FREE(project);
+        CBM_FREE(base_branch);
+        CBM_FREE(scope);
         return cbm_mcp_text_result("base_branch contains invalid characters", true);
     }
 
     char *root_path = get_project_root(srv, project);
     if (!root_path) {
-        free(project);
-        free(base_branch);
-        free(scope);
+        CBM_FREE(project);
+        CBM_FREE(base_branch);
+        CBM_FREE(scope);
         return cbm_mcp_text_result("project not found", true);
     }
 
     if (!cbm_validate_shell_arg(root_path)) {
-        free(root_path);
-        free(project);
-        free(base_branch);
-        free(scope);
+        CBM_FREE(root_path);
+        CBM_FREE(project);
+        CBM_FREE(base_branch);
+        CBM_FREE(scope);
         return cbm_mcp_text_result("project path contains invalid characters", true);
     }
 
@@ -3132,10 +3133,10 @@ static char *handle_detect_changes(cbm_mcp_server_t *srv, const char *args) {
 
     FILE *fp = cbm_popen(cmd, "r");
     if (!fp) {
-        free(root_path);
-        free(project);
-        free(base_branch);
-        free(scope);
+        CBM_FREE(root_path);
+        CBM_FREE(project);
+        CBM_FREE(base_branch);
+        CBM_FREE(scope);
         return cbm_mcp_text_result("git diff failed", true);
     }
 
@@ -3177,13 +3178,13 @@ static char *handle_detect_changes(cbm_mcp_server_t *srv, const char *args) {
 
     char *json = yy_doc_to_str(doc);
     yyjson_mut_doc_free(doc);
-    free(root_path);
-    free(project);
-    free(base_branch);
-    free(scope);
+    CBM_FREE(root_path);
+    CBM_FREE(project);
+    CBM_FREE(base_branch);
+    CBM_FREE(scope);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -3220,7 +3221,7 @@ static char *adr_read_content(yyjson_mut_doc *doc, yyjson_mut_val *root_obj, con
             sz = 0;
         }
         (void)fseek(fp, 0, SEEK_SET);
-        char *buf = malloc((size_t)sz + SKIP_ONE);
+        char *buf = CBM_MALLOC((size_t)sz + SKIP_ONE);
         size_t n = (sz > 0) ? fread(buf, SKIP_ONE, (size_t)sz, fp) : 0;
         if (n > (size_t)sz) {
             n = (size_t)sz;
@@ -3254,9 +3255,9 @@ static char *handle_manage_adr(cbm_mcp_server_t *srv, const char *args) {
 
     char *root_path = get_project_root(srv, project);
     if (!root_path) {
-        free(project);
-        free(mode_str);
-        free(content);
+        CBM_FREE(project);
+        CBM_FREE(mode_str);
+        CBM_FREE(content);
         return cbm_mcp_text_result("project not found", true);
     }
 
@@ -3288,14 +3289,14 @@ static char *handle_manage_adr(cbm_mcp_server_t *srv, const char *args) {
 
     char *json = yy_doc_to_str(doc);
     yyjson_mut_doc_free(doc);
-    free(adr_buf);
-    free(root_path);
-    free(project);
-    free(mode_str);
-    free(content);
+    CBM_FREE(adr_buf);
+    CBM_FREE(root_path);
+    CBM_FREE(project);
+    CBM_FREE(mode_str);
+    CBM_FREE(content);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -3329,7 +3330,7 @@ static char *handle_ingest_traces(cbm_mcp_server_t *srv, const char *args) {
     yyjson_mut_doc_free(doc);
 
     char *result = cbm_mcp_text_result(json, false);
-    free(json);
+    CBM_FREE(json);
     return result;
 }
 
@@ -3416,7 +3417,7 @@ static void detect_session(cbm_mcp_server_t *srv) {
         char *pname = cbm_project_name_from_path(srv->session_root);
         if (pname) {
             snprintf(srv->session_project, sizeof(srv->session_project), "%s", pname);
-            free(pname);
+            CBM_FREE(pname);
         }
     }
 }
@@ -3623,7 +3624,7 @@ static char *inject_update_notice(cbm_mcp_server_t *srv, char *result_json) {
     yyjson_mut_doc_free(mdoc);
 
     if (new_json) {
-        free(result_json);
+        CBM_FREE(result_json);
         srv->update_notice[0] = '\0'; /* clear — one-shot */
         return new_json;
     }
@@ -3669,8 +3670,8 @@ char *cbm_mcp_server_handle(cbm_mcp_server_t *srv, const char *line) {
         cbm_diag_record_query(dur_us, is_err);
 
         result_json = inject_update_notice(srv, result_json);
-        free(tool_name);
-        free(tool_args);
+        CBM_FREE(tool_name);
+        CBM_FREE(tool_args);
     } else {
         char *err = cbm_jsonrpc_format_error(req.id, JSONRPC_METHOD_NOT_FOUND, "Method not found");
         cbm_jsonrpc_request_free(&req);
@@ -3682,7 +3683,7 @@ char *cbm_mcp_server_handle(cbm_mcp_server_t *srv, const char *line) {
         .result_json = result_json,
     };
     char *out = cbm_jsonrpc_format_response(&resp);
-    free(result_json);
+    CBM_FREE(result_json);
     cbm_jsonrpc_request_free(&req);
     return out;
 }
@@ -3702,7 +3703,7 @@ static void handle_content_length_frame(cbm_mcp_server_t *srv, FILE *in, FILE *o
         }
     }
 
-    char *body = malloc((size_t)content_len + SKIP_ONE);
+    char *body = CBM_MALLOC((size_t)content_len + SKIP_ONE);
     if (!body) {
         return;
     }
@@ -3710,13 +3711,13 @@ static void handle_content_length_frame(cbm_mcp_server_t *srv, FILE *in, FILE *o
     body[nread] = '\0';
 
     char *resp = cbm_mcp_server_handle(srv, body);
-    free(body);
+    CBM_FREE(body);
 
     if (resp) {
         size_t rlen = strlen(resp);
         (void)fprintf(out, "Content-Length: %zu\r\n\r\n%s", rlen, resp);
         (void)fflush(out);
-        free(resp);
+        CBM_FREE(resp);
     }
 }
 
@@ -3848,11 +3849,11 @@ int cbm_mcp_server_run(cbm_mcp_server_t *srv, FILE *in, FILE *out) {
         if (resp) {
             (void)fprintf(out, "%s\n", resp);
             (void)fflush(out);
-            free(resp);
+            CBM_FREE(resp);
         }
     }
 
-    free(line);
+    CBM_FREE(line);
     return 0;
 }
 

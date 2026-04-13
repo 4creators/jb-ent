@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include "foundation/allocator.h"
 
 /* ══════════════════════════════════════════════════════════════════
  *  ADAPTIVE INTERVAL
@@ -982,7 +983,7 @@ TEST(watcher_detects_subdir_file) {
 
 TEST(watcher_free_idempotent) {
     /* Port of TestFSNotifyCleanup:
-     * Verify that free() properly cleans up, and free(NULL) is safe.
+     * Verify that CBM_FREE() properly cleans up, and CBM_FREE(NULL) is safe.
      * Tests resource cleanup correctness. */
     cbm_store_t *store = cbm_store_open_memory();
     cbm_watcher_t *w = cbm_watcher_new(store, NULL, NULL);
@@ -1305,7 +1306,7 @@ TEST(watcher_null_store_handling) {
 }
 
 TEST(watcher_free_null_safe) {
-    /* Explicit test: free(NULL) must not crash */
+    /* Explicit test: CBM_FREE(NULL) must not crash */
     cbm_watcher_free(NULL);
     cbm_watcher_free(NULL);
     PASS();

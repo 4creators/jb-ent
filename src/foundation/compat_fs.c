@@ -37,7 +37,7 @@ cbm_dir_t *cbm_opendir(const char *path) {
     }
     /* Build search pattern: "path\*" */
     size_t len = strlen(path);
-    char *pattern = (char *)malloc(len + 3);
+    char *pattern = (char *)CBM_MALLOC(len + 3);
     if (!pattern) {
         return NULL;
     }
@@ -48,16 +48,16 @@ cbm_dir_t *cbm_opendir(const char *path) {
     pattern[len++] = '*';
     pattern[len] = '\0';
 
-    cbm_dir_t *d = (cbm_dir_t *)calloc(CBM_ALLOC_ONE, sizeof(cbm_dir_t));
+    cbm_dir_t *d = (cbm_dir_t *)CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_dir_t));
     if (!d) {
-        free(pattern);
+        CBM_FREE(pattern);
         return NULL;
     }
 
     d->find_handle = FindFirstFileA(pattern, &d->find_data);
-    free(pattern);
+    CBM_FREE(pattern);
     if (d->find_handle == INVALID_HANDLE_VALUE) {
-        free(d);
+        CBM_FREE(d);
         return NULL;
     }
     d->first = true;
@@ -103,7 +103,7 @@ void cbm_closedir(cbm_dir_t *d) {
         if (d->find_handle != INVALID_HANDLE_VALUE) {
             FindClose(d->find_handle);
         }
-        free(d);
+        CBM_FREE(d);
     }
 }
 
@@ -134,7 +134,7 @@ bool cbm_mkdir_p(const char *path, int mode) {
         }
     }
     bool ok = _mkdir(tmp) == 0 || GetLastError() == ERROR_ALREADY_EXISTS;
-    free(tmp);
+    CBM_FREE(tmp);
     return ok;
 }
 
@@ -162,6 +162,7 @@ int cbm_exec_no_shell(const char *const *argv) {
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "foundation/allocator.h"
 
 struct cbm_dir {
     DIR *dir;
@@ -176,7 +177,7 @@ cbm_dir_t *cbm_opendir(const char *path) {
     if (!dir) {
         return NULL;
     }
-    cbm_dir_t *d = (cbm_dir_t *)calloc(CBM_ALLOC_ONE, sizeof(cbm_dir_t));
+    cbm_dir_t *d = (cbm_dir_t *)CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_dir_t));
     if (!d) {
         closedir(dir);
         return NULL;
@@ -215,7 +216,7 @@ void cbm_closedir(cbm_dir_t *d) {
         if (d->dir) {
             closedir(d->dir);
         }
-        free(d);
+        CBM_FREE(d);
     }
 }
 
@@ -233,7 +234,7 @@ bool cbm_mkdir_p(const char *path, int mode) {
         return true;
     }
     /* Walk path and create each component */
-    char *tmp = strdup(path);
+    char *tmp = CBM_STRDUP(path);
     if (!tmp) {
         return false;
     }
@@ -245,7 +246,7 @@ bool cbm_mkdir_p(const char *path, int mode) {
         }
     }
     bool ok = (mkdir(tmp, (mode_t)mode) == 0 || errno == EEXIST) != 0;
-    free(tmp);
+    CBM_FREE(tmp);
     return ok;
 }
 

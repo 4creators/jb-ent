@@ -13,6 +13,7 @@ add_definitions(
     -DMG_ENABLE_LOG=0
     -DHAVE_LIBGIT2=1
     -DMI_OVERRIDE=1
+    -DCBM_HARDEN_MEMORY
 )
 
 if(MSVC)

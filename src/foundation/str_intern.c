@@ -12,6 +12,7 @@ enum { INTERN_LOAD_NUM = 7 };
 #include <stdint.h> // uint32_t
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* FNV-1a hash constants (published by Fowler/Noll/Vo) */
 #define FNV_OFFSET_BASIS 2166136261U
@@ -44,17 +45,17 @@ struct CBMInternPool {
 };
 
 CBMInternPool *cbm_intern_create(void) {
-    CBMInternPool *p = (CBMInternPool *)calloc(CBM_ALLOC_ONE, sizeof(*p));
+    CBMInternPool *p = (CBMInternPool *)CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*p));
     if (!p) {
         return NULL;
     }
     cbm_arena_init(&p->arena);
     p->capacity = CBM_SZ_256;
     p->mask = p->capacity - SKIP_ONE;
-    p->buckets = (InternEntry *)calloc(p->capacity, sizeof(InternEntry));
+    p->buckets = (InternEntry *)CBM_CALLOC(p->capacity, sizeof(InternEntry));
     if (!p->buckets) {
         cbm_arena_destroy(&p->arena);
-        free(p);
+        CBM_FREE(p);
         return NULL;
     }
     return p;
@@ -65,14 +66,14 @@ void cbm_intern_free(CBMInternPool *pool) {
         return;
     }
     cbm_arena_destroy(&pool->arena);
-    free(pool->buckets);
-    free(pool);
+    CBM_FREE(pool->buckets);
+    CBM_FREE(pool);
 }
 
 static void intern_resize(CBMInternPool *p) {
     uint32_t new_cap = p->capacity * PAIR_LEN;
     uint32_t new_mask = new_cap - SKIP_ONE;
-    InternEntry *new_buckets = (InternEntry *)calloc(new_cap, sizeof(InternEntry));
+    InternEntry *new_buckets = (InternEntry *)CBM_CALLOC(new_cap, sizeof(InternEntry));
     if (!new_buckets) {
         return;
     }
@@ -89,7 +90,7 @@ static void intern_resize(CBMInternPool *p) {
         new_buckets[idx] = *e;
     }
 
-    free(p->buckets);
+    CBM_FREE(p->buckets);
     p->buckets = new_buckets;
     p->capacity = new_cap;
     p->mask = new_mask;

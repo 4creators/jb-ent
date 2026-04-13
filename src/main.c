@@ -162,7 +162,7 @@ static int run_cli(int argc, char **argv) {
     char *result = cbm_mcp_handle_tool(srv, tool_name, args_json);
     if (result) {
         printf("%s\n", result);
-        free(result);
+        CBM_FREE(result);
     }
 
     cbm_mcp_server_free(srv);
@@ -272,9 +272,13 @@ static void setup_signal_handlers(void) {
 }
 
 #include <mimalloc.h>
+#include "foundation/allocator.h"
 
 int main(int argc, char **argv) {
     mi_version(); /* Force mimalloc DLL to load before ucrtbase on Windows */
+#ifdef CBM_HARDEN_MEMORY
+    atexit(cbm_mem_print_audit);
+#endif
     cbm_profile_init(); /* reads CBM_PROFILE env var, gates all prof macros */
     int subcmd = handle_subcommand(argc, argv);
     if (subcmd >= 0) {

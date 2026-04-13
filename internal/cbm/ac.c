@@ -15,6 +15,7 @@
 #include "ac.h"
 #include "foundation/compat.h"
 #include "lz4_store.h"
+#include "foundation/allocator.h"
 
 // ─── Data structures ───────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ typedef struct {
 } Queue;
 
 static void queue_init(Queue *q, int cap) {
-    q->data = (int *)malloc(cap * sizeof(int));
+    q->data = (int *)CBM_MALLOC(cap * sizeof(int));
     q->head = q->tail = 0;
     q->cap = cap;
 }
@@ -65,7 +66,7 @@ static int queue_empty(Queue *q) {
     return q->head >= q->tail;
 }
 static void queue_free(Queue *q) {
-    free(q->data);
+    CBM_FREE(q->data);
 }
 
 // Phase 1: Build trie (goto function) from patterns. Returns state count.
@@ -101,7 +102,7 @@ static int ac_build_trie(CBMAutomaton *ac, const char **patterns, const int *len
 // Phase 2: Build failure function via BFS + compute full goto table.
 static void ac_build_failure(CBMAutomaton *ac, int num_states) {
     int alpha_size = ac->alpha_size;
-    int *fail = (int *)calloc(num_states, sizeof(int));
+    int *fail = (int *)CBM_CALLOC(num_states, sizeof(int));
 
     Queue q;
     queue_init(&q, num_states);
@@ -133,7 +134,7 @@ static void ac_build_failure(CBMAutomaton *ac, int num_states) {
         }
     }
 
-    free(fail);
+    CBM_FREE(fail);
     queue_free(&q);
 }
 
@@ -144,19 +145,19 @@ static void ac_shrink_tables(CBMAutomaton *ac, int num_states, int max_states) {
     }
     int alpha_size = ac->alpha_size;
     void *tmp;
-    tmp = realloc(ac->go_table, (size_t)num_states * alpha_size * sizeof(int));
+    tmp = CBM_REALLOC(ac->go_table, (size_t)num_states * alpha_size * sizeof(int));
     if (tmp) {
         ac->go_table = (int *)tmp;
     }
-    tmp = realloc(ac->output, (size_t)num_states * sizeof(uint64_t));
+    tmp = CBM_REALLOC(ac->output, (size_t)num_states * sizeof(uint64_t));
     if (tmp) {
         ac->output = (uint64_t *)tmp;
     }
-    tmp = realloc(ac->output_list, (size_t)num_states * sizeof(int));
+    tmp = CBM_REALLOC(ac->output_list, (size_t)num_states * sizeof(int));
     if (tmp) {
         ac->output_list = (int *)tmp;
     }
-    tmp = realloc(ac->output_next, (size_t)num_states * sizeof(int));
+    tmp = CBM_REALLOC(ac->output_next, (size_t)num_states * sizeof(int));
     if (tmp) {
         ac->output_next = (int *)tmp;
     }
@@ -187,7 +188,7 @@ CBMAutomaton *cbm_ac_build(const char **patterns, const int *lengths, int count,
         max_states += lengths[i];
     }
 
-    CBMAutomaton *ac = (CBMAutomaton *)calloc(CBM_AC_ALLOC_ONE, sizeof(CBMAutomaton));
+    CBMAutomaton *ac = (CBMAutomaton *)CBM_CALLOC(CBM_AC_ALLOC_ONE, sizeof(CBMAutomaton));
     ac->alpha_size = alpha_size;
     ac->num_patterns = count;
 
@@ -199,11 +200,11 @@ CBMAutomaton *cbm_ac_build(const char **patterns, const int *lengths, int count,
         }
     }
 
-    ac->go_table = (int *)malloc((size_t)max_states * alpha_size * sizeof(int));
+    ac->go_table = (int *)CBM_MALLOC((size_t)max_states * alpha_size * sizeof(int));
     memset(ac->go_table, CBM_AC_NO_STATE, (size_t)max_states * alpha_size * sizeof(int));
-    ac->output = (uint64_t *)calloc(max_states, sizeof(uint64_t));
-    ac->output_list = (int *)malloc(max_states * sizeof(int));
-    ac->output_next = (int *)malloc(max_states * sizeof(int));
+    ac->output = (uint64_t *)CBM_CALLOC(max_states, sizeof(uint64_t));
+    ac->output_list = (int *)CBM_MALLOC(max_states * sizeof(int));
+    ac->output_next = (int *)CBM_MALLOC(max_states * sizeof(int));
     for (int i = 0; i < max_states; i++) {
         ac->output_list[i] = CBM_AC_NO_STATE;
         ac->output_next[i] = CBM_AC_NO_STATE;
@@ -222,11 +223,11 @@ void cbm_ac_free(CBMAutomaton *ac) {
     if (!ac) {
         return;
     }
-    free(ac->go_table);
-    free(ac->output);
-    free(ac->output_list);
-    free(ac->output_next);
-    free(ac);
+    CBM_FREE(ac->go_table);
+    CBM_FREE(ac->output);
+    CBM_FREE(ac->output_list);
+    CBM_FREE(ac->output_next);
+    CBM_FREE(ac);
 }
 
 // ─── Scan functions ────────────────────────────────────────────────────────
@@ -257,10 +258,10 @@ static CBM_TLS int tls_decomp_cap = 0;
 
 static char *get_decomp_buf(int needed) {
     if (needed > tls_decomp_cap) {
-        free(tls_decomp_buf);
+        CBM_FREE(tls_decomp_buf);
         // Round up to 64KB chunks for reuse.
         int cap = (needed + DECOMP_BUF_ALIGN_MASK) & ~DECOMP_BUF_ALIGN_MASK;
-        tls_decomp_buf = (cap > 0) ? (char *)malloc((size_t)cap) : NULL;
+        tls_decomp_buf = (cap > 0) ? (char *)CBM_MALLOC((size_t)cap) : NULL;
         tls_decomp_cap = cap;
     }
     return tls_decomp_buf;

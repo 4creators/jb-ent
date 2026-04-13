@@ -50,6 +50,7 @@ enum {
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "foundation/allocator.h"
 
 static uint64_t extract_now_ns(void) {
     struct timespec ts;
@@ -72,7 +73,7 @@ static char *read_file(const char *path, int *out_len) {
         (void)fclose(f);
         return NULL;
     }
-    char *buf = (char *)malloc((size_t)size + SKIP_ONE);
+    char *buf = (char *)CBM_MALLOC((size_t)size + SKIP_ONE);
     if (!buf) {
         (void)fclose(f);
         return NULL;
@@ -86,7 +87,7 @@ static char *read_file(const char *path, int *out_len) {
 
 /* Free source buffer. */
 static void free_source(char *buf) {
-    free(buf);
+    CBM_FREE(buf);
 }
 
 static const char *itoa_log(int val) {
@@ -251,7 +252,7 @@ static int build_import_map(const cbm_gbuf_t *gbuf, const char *project_name, co
 
     char *file_qn = cbm_pipeline_fqn_compute(project_name, rel_path, "__file__");
     const cbm_gbuf_node_t *file_node = cbm_gbuf_find_by_qn(gbuf, file_qn);
-    free(file_qn);
+    CBM_FREE(file_qn);
     if (!file_node) {
         return 0;
     }
@@ -264,11 +265,11 @@ static int build_import_map(const cbm_gbuf_t *gbuf, const char *project_name, co
         return 0;
     }
 
-    const char **keys = calloc(edge_count, sizeof(const char *));
-    const char **vals = calloc(edge_count, sizeof(const char *));
+    const char **keys = CBM_CALLOC(edge_count, sizeof(const char *));
+    const char **vals = CBM_CALLOC(edge_count, sizeof(const char *));
     if (!keys || !vals) {
-        free((void *)keys);
-        free((void *)vals);
+        CBM_FREE((void *)keys);
+        CBM_FREE((void *)vals);
         return 0;
     }
     int count = 0;
@@ -284,7 +285,7 @@ static int build_import_map(const cbm_gbuf_t *gbuf, const char *project_name, co
             start += strlen("\"local_name\":\"");
             const char *end = strchr(start, '"');
             if (end && end > start) {
-                keys[count] = cbm_strndup(start, end - start);
+                keys[count] = CBM_STRNDUP(start, end - start);
                 vals[count] = target->qualified_name;
                 count++;
             }
@@ -300,12 +301,12 @@ static int build_import_map(const cbm_gbuf_t *gbuf, const char *project_name, co
 static void free_import_map(const char **keys, const char **vals, int count) {
     if (keys) {
         for (int i = 0; i < count; i++) {
-            free((void *)keys[i]);
+            CBM_FREE((void *)keys[i]);
         }
-        free((void *)keys);
+        CBM_FREE((void *)keys);
     }
     if (vals) {
-        free((void *)vals);
+        CBM_FREE((void *)vals);
     }
 }
 
@@ -580,7 +581,7 @@ int cbm_parallel_extract(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t *files, 
 
     /* Sub-phase: Sort files by descending size for tail-latency reduction */
     CBM_PROF_START(t_sort);
-    file_sort_entry_t *sorted = malloc(file_count * sizeof(file_sort_entry_t));
+    file_sort_entry_t *sorted = CBM_MALLOC(file_count * sizeof(file_sort_entry_t));
     if (!sorted) {
         return CBM_NOT_FOUND;
     }
@@ -595,7 +596,7 @@ int cbm_parallel_extract(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t *files, 
     extract_worker_state_t *workers = NULL;
     if (cbm_aligned_alloc((void **)&workers, CBM_CACHE_LINE,
                           (size_t)worker_count * sizeof(extract_worker_state_t)) != 0) {
-        free(sorted);
+        CBM_FREE(sorted);
         return CBM_NOT_FOUND;
     }
     memset(workers, 0, (size_t)worker_count * sizeof(extract_worker_state_t));
@@ -636,7 +637,7 @@ int cbm_parallel_extract(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t *files, 
     CBM_PROF_END_N("parallel_extract", "4_merge_gbufs_seq", t_merge, total_nodes);
 
     cbm_aligned_free(workers);
-    free(sorted);
+    CBM_FREE(sorted);
 
     if (atomic_load(ctx->cancelled)) {
         return CBM_NOT_FOUND;
@@ -680,7 +681,7 @@ static int register_and_link_def(cbm_pipeline_ctx_t *ctx, const CBMDefinition *d
         cbm_gbuf_insert_edge(ctx->gbuf, file_node->id, def_node->id, "DEFINES", "{}");
         edges++;
     }
-    free(file_qn);
+    CBM_FREE(file_qn);
     if (def->parent_class && strcmp(def->label, "Method") == 0) {
         const cbm_gbuf_node_t *parent = cbm_gbuf_find_by_qn(ctx->gbuf, def->parent_class);
         if (parent && def_node) {
@@ -703,7 +704,7 @@ static int create_imports_edges(cbm_pipeline_ctx_t *ctx, const CBMFileResult *re
         char *resolved = cbm_pipeline_resolve_relative_import(rel, imp->module_path);
         if (resolved) {
             target_qn = cbm_pipeline_fqn_module(ctx->project_name, resolved);
-            free(resolved);
+            CBM_FREE(resolved);
         } else {
             target_qn = cbm_pipeline_fqn_module(ctx->project_name, imp->module_path);
         }
@@ -718,8 +719,8 @@ static int create_imports_edges(cbm_pipeline_ctx_t *ctx, const CBMFileResult *re
             cbm_gbuf_insert_edge(ctx->gbuf, source_node->id, target->id, "IMPORTS", imp_props);
             count++;
         }
-        free(target_qn);
-        free(file_qn);
+        CBM_FREE(target_qn);
+        CBM_FREE(file_qn);
     }
     return count;
 }
@@ -734,7 +735,7 @@ static const cbm_gbuf_node_t *find_channel_src(cbm_pipeline_ctx_t *ctx, const CB
     if (!node) {
         char *file_qn = cbm_pipeline_fqn_compute(ctx->project_name, rel, "__file__");
         node = cbm_gbuf_find_by_qn(ctx->gbuf, file_qn);
-        free(file_qn);
+        CBM_FREE(file_qn);
     }
     return node;
 }
@@ -1216,7 +1217,7 @@ static const cbm_gbuf_node_t *find_source_node(const cbm_gbuf_t *gbuf, const cha
     if (!src) {
         char *file_qn = cbm_pipeline_fqn_compute(project, rel, "__file__");
         src = cbm_gbuf_find_by_qn(gbuf, file_qn);
-        free(file_qn);
+        CBM_FREE(file_qn);
     }
     return src;
 }
@@ -1483,7 +1484,7 @@ static void resolve_worker(int worker_id, void *ctx_ptr) {
         /* ── INHERITS + DECORATES + IMPLEMENTS ──────────────────── */
         resolve_file_semantic(rc, ws, result, module_qn, imp_keys, imp_vals, imp_count);
 
-        free(module_qn);
+        CBM_FREE(module_qn);
         free_import_map(imp_keys, imp_vals, imp_count);
     }
 }

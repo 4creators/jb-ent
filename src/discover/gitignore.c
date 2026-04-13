@@ -20,6 +20,7 @@ enum { GI_INIT_CAP = 16, GI_CHAR_IDX1 = 1, GI_CHAR_IDX2 = 2, GI_SKIP3 = 3 };
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* ── Pattern representation ──────────────────────────────────────── */
 
@@ -228,7 +229,7 @@ static void gi_add_pattern(cbm_gitignore_t *gi, const char *line, int len) {
     }
 
     /* Copy pattern */
-    p.pattern = malloc(len + SKIP_ONE);
+    p.pattern = CBM_MALLOC(len + SKIP_ONE);
     if (!p.pattern) {
         return;
     }
@@ -238,9 +239,9 @@ static void gi_add_pattern(cbm_gitignore_t *gi, const char *line, int len) {
     /* Grow array if needed */
     if (gi->count >= gi->capacity) {
         int new_cap = gi->capacity ? gi->capacity * PAIR_LEN : GI_INIT_CAP;
-        gi_pattern_t *new_patterns = realloc(gi->patterns, new_cap * sizeof(gi_pattern_t));
+        gi_pattern_t *new_patterns = CBM_REALLOC(gi->patterns, new_cap * sizeof(gi_pattern_t));
         if (!new_patterns) {
-            free(p.pattern);
+            CBM_FREE(p.pattern);
             return;
         }
         gi->patterns = new_patterns;
@@ -257,7 +258,7 @@ cbm_gitignore_t *cbm_gitignore_parse(const char *content) {
         return NULL;
     }
 
-    cbm_gitignore_t *gi = calloc(CBM_ALLOC_ONE, sizeof(cbm_gitignore_t));
+    cbm_gitignore_t *gi = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_gitignore_t));
     if (!gi) {
         return NULL;
     }
@@ -302,7 +303,7 @@ cbm_gitignore_t *cbm_gitignore_load(const char *path) {
         return cbm_gitignore_parse("");
     }
 
-    char *buf = malloc(size + SKIP_ONE);
+    char *buf = CBM_MALLOC(size + SKIP_ONE);
     if (!buf) {
         (void)fclose(f);
         return NULL;
@@ -313,7 +314,7 @@ cbm_gitignore_t *cbm_gitignore_load(const char *path) {
     (void)fclose(f);
 
     cbm_gitignore_t *gi = cbm_gitignore_parse(buf);
-    free(buf);
+    CBM_FREE(buf);
     return gi;
 }
 
@@ -374,8 +375,8 @@ void cbm_gitignore_free(cbm_gitignore_t *gi) {
         return;
     }
     for (int i = 0; i < gi->count; i++) {
-        free(gi->patterns[i].pattern);
+        CBM_FREE(gi->patterns[i].pattern);
     }
-    free(gi->patterns);
-    free(gi);
+    CBM_FREE(gi->patterns);
+    CBM_FREE(gi);
 }

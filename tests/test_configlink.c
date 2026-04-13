@@ -31,6 +31,7 @@ static int run_configlink(cbm_gbuf_t *gb, const char *project, const char *repo_
 }
 #include <sys/stat.h>
 #include <unistd.h>
+#include "foundation/allocator.h"
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
@@ -283,9 +284,9 @@ TEST(configlink_file_ref_no_false_positive) {
     ASSERT_FALSE(has_strategy(edges, count, "file_reference"));
 
     cbm_gbuf_free(gb);
-    free(csv_qn);
-    free(main_qn);
-    free(project);
+    CBM_FREE(csv_qn);
+    CBM_FREE(main_qn);
+    CBM_FREE(project);
     rm_rf(tmpdir);
     PASS();
 }

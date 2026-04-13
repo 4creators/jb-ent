@@ -17,6 +17,7 @@
 #include <string.h>
 #ifndef _WIN32
 #include <unistd.h>
+#include "foundation/allocator.h"
 #endif
 
 /* ── Config tests ─────────────────────────────────────────────── */
@@ -33,7 +34,7 @@ TEST(config_load_defaults) {
     char *td = cbm_mkdtemp(tmpdir);
     ASSERT_NOT_NULL(td);
 
-    char *old_home = getenv("HOME") ? strdup(getenv("HOME")) : NULL;
+    char *old_home = getenv("HOME") ? CBM_STRDUP(getenv("HOME")) : NULL;
     cbm_setenv("HOME", td, 1);
 
     cbm_ui_config_load(&cfg);
@@ -44,7 +45,7 @@ TEST(config_load_defaults) {
     /* Restore HOME */
     if (old_home) {
         cbm_setenv("HOME", old_home, 1);
-        free(old_home);
+        CBM_FREE(old_home);
     }
 
     PASS();
@@ -56,7 +57,7 @@ TEST(config_save_and_reload) {
     char *td = cbm_mkdtemp(tmpdir);
     ASSERT_NOT_NULL(td);
 
-    char *old_home = getenv("HOME") ? strdup(getenv("HOME")) : NULL;
+    char *old_home = getenv("HOME") ? CBM_STRDUP(getenv("HOME")) : NULL;
     cbm_setenv("HOME", td, 1);
 
     /* Save */
@@ -72,7 +73,7 @@ TEST(config_save_and_reload) {
 
     if (old_home) {
         cbm_setenv("HOME", old_home, 1);
-        free(old_home);
+        CBM_FREE(old_home);
     }
 
     PASS();
@@ -84,7 +85,7 @@ TEST(config_overwrite) {
     char *td = cbm_mkdtemp(tmpdir);
     ASSERT_NOT_NULL(td);
 
-    char *old_home = getenv("HOME") ? strdup(getenv("HOME")) : NULL;
+    char *old_home = getenv("HOME") ? CBM_STRDUP(getenv("HOME")) : NULL;
     cbm_setenv("HOME", td, 1);
 
     /* Save with ui_enabled=true */
@@ -102,7 +103,7 @@ TEST(config_overwrite) {
 
     if (old_home) {
         cbm_setenv("HOME", old_home, 1);
-        free(old_home);
+        CBM_FREE(old_home);
     }
 
     PASS();
@@ -114,7 +115,7 @@ TEST(config_corrupt_file) {
     char *td = cbm_mkdtemp(tmpdir);
     ASSERT_NOT_NULL(td);
 
-    char *old_home = getenv("HOME") ? strdup(getenv("HOME")) : NULL;
+    char *old_home = getenv("HOME") ? CBM_STRDUP(getenv("HOME")) : NULL;
     cbm_setenv("HOME", td, 1);
 
     /* Write garbage to config path */
@@ -139,7 +140,7 @@ TEST(config_corrupt_file) {
 
     if (old_home) {
         cbm_setenv("HOME", old_home, 1);
-        free(old_home);
+        CBM_FREE(old_home);
     }
 
     PASS();
@@ -151,7 +152,7 @@ TEST(config_missing_fields) {
     char *td = cbm_mkdtemp(tmpdir);
     ASSERT_NOT_NULL(td);
 
-    char *old_home = getenv("HOME") ? strdup(getenv("HOME")) : NULL;
+    char *old_home = getenv("HOME") ? CBM_STRDUP(getenv("HOME")) : NULL;
     cbm_setenv("HOME", td, 1);
 
     /* Write JSON with only ui_port */
@@ -174,7 +175,7 @@ TEST(config_missing_fields) {
 
     if (old_home) {
         cbm_setenv("HOME", old_home, 1);
-        free(old_home);
+        CBM_FREE(old_home);
     }
 
     PASS();
@@ -387,7 +388,7 @@ TEST(layout_to_json) {
     ASSERT(strstr(json, "\"hello\"") != NULL);
     ASSERT(strstr(json, "\"Function\"") != NULL);
 
-    free(json);
+    CBM_FREE(json);
     cbm_layout_free(r);
     cbm_store_close(store);
     PASS();

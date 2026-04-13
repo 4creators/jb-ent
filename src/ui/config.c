@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* ── Path ────────────────────────────────────────────────────── */
 
@@ -55,7 +56,7 @@ void cbm_ui_config_load(cbm_ui_config_t *cfg) {
         return; /* empty or suspiciously large → defaults */
     }
 
-    char *buf = malloc((size_t)len + SKIP_ONE);
+    char *buf = CBM_MALLOC((size_t)len + SKIP_ONE);
     if (!buf) {
         fclose(f);
         return;
@@ -66,7 +67,7 @@ void cbm_ui_config_load(cbm_ui_config_t *cfg) {
     buf[nread] = '\0';
 
     yyjson_doc *doc = yyjson_read(buf, nread, 0);
-    free(buf);
+    CBM_FREE(buf);
     if (!doc) {
         cbm_log_warn("ui.config.corrupt", "path", path);
         return; /* corrupt JSON → defaults */
@@ -125,13 +126,13 @@ void cbm_ui_config_save(const cbm_ui_config_t *cfg) {
     FILE *f = fopen(path, "wb");
     if (!f) {
         cbm_log_error("ui.config.write_fail", "path", path);
-        free(json);
+        CBM_FREE(json);
         return;
     }
 
     fwrite(json, SKIP_ONE, json_len, f);
     fclose(f);
-    free(json);
+    CBM_FREE(json);
 
     cbm_log_debug("ui.config.saved", "path", path);
 }

@@ -21,6 +21,7 @@ enum { ENRICH_ATTR_SKIP = 2, ENRICH_MAX_CAMEL = 16 };
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* Convert intptr_t to void* without triggering performance-no-int-to-ptr. */
 static inline void *intptr_to_ptr(intptr_t v) {
@@ -57,7 +58,7 @@ int cbm_split_camel_case(const char *s, char **out, int max_out) {
     for (size_t i = SKIP_ONE; i < len; i++) {
         if (s[i] >= 'A' && s[i] <= 'Z' && s[i - SKIP_ONE] >= 'a' && s[i - SKIP_ONE] <= 'z') {
             if (count < max_out) {
-                out[count] = cbm_strndup(s + start, i - start);
+                out[count] = CBM_STRNDUP(s + start, i - start);
                 count++;
             }
             start = i;
@@ -65,7 +66,7 @@ int cbm_split_camel_case(const char *s, char **out, int max_out) {
     }
     /* Emit remaining */
     if (count < max_out) {
-        out[count] = cbm_strndup(s + start, len - start);
+        out[count] = CBM_STRNDUP(s + start, len - start);
         count++;
     }
     return count;
@@ -127,7 +128,7 @@ int cbm_tokenize_decorator(const char *dec, char **out, int max_out) {
             if (strlen(camel_parts[i]) >= PAIR_LEN && !is_decorator_stopword(camel_parts[i])) {
                 out[count++] = camel_parts[i];
             } else {
-                free(camel_parts[i]);
+                CBM_FREE(camel_parts[i]);
             }
         }
         part = strtok_r(NULL, " ", &saveptr);
@@ -180,7 +181,7 @@ static char **extract_decorators_from_json(const char *json) {
         return NULL;
     }
 
-    char **out = calloc(cnt + SKIP_ONE, sizeof(char *));
+    char **out = CBM_CALLOC(cnt + SKIP_ONE, sizeof(char *));
     if (!out) {
         yyjson_doc_free(doc);
         return NULL;
@@ -191,7 +192,7 @@ static char **extract_decorators_from_json(const char *json) {
     yyjson_arr_iter_init(decs, &iter);
     while ((item = yyjson_arr_iter_next(&iter))) {
         if (yyjson_is_str(item)) {
-            out[idx++] = strdup(yyjson_get_str(item));
+            out[idx++] = CBM_STRDUP(yyjson_get_str(item));
         }
     }
     out[idx] = NULL;
@@ -200,7 +201,7 @@ static char **extract_decorators_from_json(const char *json) {
     if (idx > 0) {
         return out;
     }
-    free(out);
+    CBM_FREE(out);
     return NULL;
 }
 
@@ -226,12 +227,12 @@ static int extract_decorator_words(const char *json, char ***out_words) {
                 cbm_ht_set(seen, tokens[j], intptr_to_ptr(SKIP_ONE));
                 all_words[total++] = tokens[j];
             } else {
-                free(tokens[j]);
+                CBM_FREE(tokens[j]);
             }
         }
-        free(decorators[i]);
+        CBM_FREE(decorators[i]);
     }
-    free(decorators);
+    CBM_FREE(decorators);
     cbm_ht_free(seen);
 
     if (total == 0) {
@@ -239,13 +240,13 @@ static int extract_decorator_words(const char *json, char ***out_words) {
         return 0;
     }
 
-    *out_words = malloc(sizeof(char *) * total);
+    *out_words = CBM_MALLOC(sizeof(char *) * total);
     memcpy(*out_words, all_words, sizeof(char *) * total);
     return total;
 }
 
 /* Insert "decorator_tags" into a properties_json string.
- * Returns a newly allocated JSON string. Caller must free(). */
+ * Returns a newly allocated JSON string. Caller must CBM_FREE(). */
 static char *inject_decorator_tags(const char *json, char **tags, int tag_count) {
     yyjson_doc *doc = yyjson_read(json, strlen(json), 0);
     yyjson_val *root = doc ? yyjson_doc_get_root(doc) : NULL;
@@ -284,13 +285,13 @@ static int cmp_str(const void *a, const void *b) {
 /* Free tagged_node_t array. */
 static void free_tagged_nodes(tagged_node_t *nodes, int count) {
     for (int n = 0; n < count; n++) {
-        free(nodes[n].qualified_name);
+        CBM_FREE(nodes[n].qualified_name);
         for (int w = 0; w < nodes[n].word_count; w++) {
-            free(nodes[n].words[w]);
+            CBM_FREE(nodes[n].words[w]);
         }
-        free(nodes[n].words);
+        CBM_FREE(nodes[n].words);
     }
-    free(nodes);
+    CBM_FREE(nodes);
 }
 
 /* Phase 1: Collect decorated nodes and count word frequency. */
@@ -322,7 +323,7 @@ static int collect_decorated_nodes(cbm_gbuf_t *gbuf, tagged_node_t **out_nodes,
             }
             tagged_node_t *tn = &nodes[node_count++];
             tn->node_id = found[i]->id;
-            tn->qualified_name = strdup(found[i]->qualified_name);
+            tn->qualified_name = CBM_STRDUP(found[i]->qualified_name);
             tn->words = words;
             tn->word_count = wc;
             for (int w = 0; w < wc; w++) {
@@ -363,7 +364,7 @@ static int apply_decorator_tags(cbm_gbuf_t *gbuf, tagged_node_t *nodes, int node
         if (new_props) {
             cbm_gbuf_upsert_node(gbuf, gn->label, gn->name, gn->qualified_name, gn->file_path,
                                  gn->start_line, gn->end_line, new_props);
-            free(new_props);
+            CBM_FREE(new_props);
             tagged++;
         }
     }
@@ -380,7 +381,7 @@ int cbm_pipeline_pass_decorator_tags(cbm_gbuf_t *gbuf, const char *project) {
     int node_count = collect_decorated_nodes(gbuf, &nodes, word_counts);
     if (node_count == 0) {
         cbm_ht_free(word_counts);
-        free(nodes);
+        CBM_FREE(nodes);
         return 0;
     }
 

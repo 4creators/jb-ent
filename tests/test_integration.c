@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include "foundation/allocator.h"
 
 /* ── Test fixture: temp project with Python + Go files ─────────── */
 
@@ -138,7 +139,7 @@ static int integration_setup(void) {
 
     /* Verify indexing succeeded */
     bool ok = strstr(resp, "indexed") != NULL;
-    free(resp);
+    CBM_FREE(resp);
     return ok ? 0 : -1;
 }
 
@@ -147,7 +148,7 @@ static void integration_teardown(void) {
         cbm_mcp_server_free(g_srv);
         g_srv = NULL;
     }
-    free(g_project);
+    CBM_FREE(g_project);
     g_project = NULL;
 
     /* Clean up temp project */
@@ -166,7 +167,7 @@ static void integration_teardown(void) {
  *  PIPELINE INTEGRATION TESTS
  * ══════════════════════════════════════════════════════════════════ */
 
-/* Helper: call a tool and return response JSON. Caller must free(). */
+/* Helper: call a tool and return response JSON. Caller must CBM_FREE(). */
 static char *call_tool(const char *tool, const char *args) {
     if (!g_srv)
         return NULL;
@@ -280,7 +281,7 @@ TEST(integ_mcp_list_projects) {
     ASSERT_NOT_NULL(resp);
     /* Should contain the project name derived from temp path */
     ASSERT_NOT_NULL(strstr(resp, "project"));
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -295,7 +296,7 @@ TEST(integ_mcp_search_graph_by_label) {
     ASSERT_NOT_NULL(strstr(resp, "Function"));
     /* Should contain our known functions */
     ASSERT_NOT_NULL(strstr(resp, "greet"));
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -306,7 +307,7 @@ TEST(integ_mcp_search_graph_by_name) {
     char *resp = call_tool("search_graph", args);
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "Add"));
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -323,7 +324,7 @@ TEST(integ_mcp_query_graph_functions) {
      * At minimum, should not be an error. */
     ASSERT_TRUE(strstr(resp, "row") || strstr(resp, "greet") || strstr(resp, "Add") ||
                 strstr(resp, "result") || strstr(resp, "f.name"));
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -338,7 +339,7 @@ TEST(integ_mcp_query_graph_calls) {
     ASSERT_NOT_NULL(resp);
     /* Should have some call relationships */
     ASSERT_NOT_NULL(strstr(resp, "name"));
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -351,7 +352,7 @@ TEST(integ_mcp_get_graph_schema) {
     /* Schema should include node labels and edge types */
     ASSERT_NOT_NULL(strstr(resp, "Function"));
     ASSERT_NOT_NULL(strstr(resp, "File"));
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -362,7 +363,7 @@ TEST(integ_mcp_get_architecture) {
     char *resp = call_tool("get_architecture", args);
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "total_nodes"));
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -379,7 +380,7 @@ TEST(integ_mcp_trace_path) {
     /* Should find the function and show some path */
     /* Either finds the function, or returns not found if name doesn't match exactly */
     ASSERT_TRUE(strstr(resp, "Compute") || strstr(resp, "Multiply") || strstr(resp, "not found"));
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -391,7 +392,7 @@ TEST(integ_mcp_index_status) {
     ASSERT_NOT_NULL(resp);
     /* Should show indexed status with node/edge counts */
     ASSERT_NOT_NULL(strstr(resp, g_project));
-    free(resp);
+    CBM_FREE(resp);
     PASS();
 }
 
@@ -403,7 +404,7 @@ TEST(integ_mcp_delete_project) {
     char *resp = call_tool("delete_project", args);
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "deleted"));
-    free(resp);
+    CBM_FREE(resp);
 
     /* Note: querying after delete on Linux re-opens the unlinked .db inode
      * (unlink defers removal until all fds close). SQLite's WAL mode connection
@@ -421,7 +422,7 @@ TEST(integ_pipeline_fqn_compute) {
     char *fqn = cbm_pipeline_fqn_compute("myproject", "src/utils.go", "Add");
     ASSERT_NOT_NULL(fqn);
     ASSERT_STR_EQ(fqn, "myproject.src.utils.Add");
-    free(fqn);
+    CBM_FREE(fqn);
     PASS();
 }
 
@@ -429,7 +430,7 @@ TEST(integ_pipeline_fqn_module) {
     char *fqn = cbm_pipeline_fqn_module("myproject", "src/utils.go");
     ASSERT_NOT_NULL(fqn);
     ASSERT_STR_EQ(fqn, "myproject.src.utils");
-    free(fqn);
+    CBM_FREE(fqn);
     PASS();
 }
 
@@ -438,7 +439,7 @@ TEST(integ_pipeline_project_name) {
     ASSERT_NOT_NULL(name);
     /* Should contain "my-project" or a sanitized version */
     ASSERT_NOT_NULL(strstr(name, "my-project"));
-    free(name);
+    CBM_FREE(name);
     PASS();
 }
 

@@ -7,7 +7,7 @@
  *   - cbm_arena_reset() for reuse without full destroy
  *   - cbm_arena_total() for allocation tracking
  *
- * Arena blocks use malloc/free (= mimalloc in production builds).
+ * Arena blocks use malloc/CBM_FREE(= mimalloc in production builds).
  */
 #include "arena.h"
 #include "foundation/constants.h"
@@ -17,6 +17,7 @@ enum { ARENA_ALIGN = 7, ARENA_GROW_OK = 1 };
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include "foundation/allocator.h"
 
 void cbm_arena_init(CBMArena *a) {
     cbm_arena_init_sized(a, CBM_ARENA_DEFAULT_BLOCK_SIZE);
@@ -28,7 +29,7 @@ void cbm_arena_init_sized(CBMArena *a, size_t block_size) {
         block_size = CBM_SZ_64; /* minimum sanity */
     }
     a->block_size = block_size;
-    a->blocks[0] = (char *)malloc(block_size);
+    a->blocks[0] = (char *)CBM_MALLOC(block_size);
     if (a->blocks[0]) {
         a->block_sizes[0] = block_size;
         a->nblocks = SKIP_ONE;
@@ -43,7 +44,7 @@ static int arena_grow(CBMArena *a, size_t min_size) {
     if (new_size < min_size) {
         new_size = min_size;
     }
-    char *block = (char *)malloc(new_size);
+    char *block = (char *)CBM_MALLOC(new_size);
     if (!block) {
         return 0;
     }
@@ -130,7 +131,7 @@ char *cbm_arena_sprintf(CBMArena *a, const char *fmt, ...) {
 void cbm_arena_reset(CBMArena *a) {
     /* Keep first block, free the rest */
     for (int i = SKIP_ONE; i < a->nblocks; i++) {
-        free(a->blocks[i]);
+        CBM_FREE(a->blocks[i]);
         a->blocks[i] = NULL;
         a->block_sizes[i] = 0;
     }
@@ -148,7 +149,7 @@ void cbm_arena_reset(CBMArena *a) {
 
 void cbm_arena_destroy(CBMArena *a) {
     for (int i = 0; i < a->nblocks; i++) {
-        free(a->blocks[i]);
+        CBM_FREE(a->blocks[i]);
     }
     memset(a, 0, sizeof(*a));
 }

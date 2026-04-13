@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+#include "foundation/allocator.h"
 
 /* ── AST node type normalisation ─────────────────────────────────── */
 
@@ -355,7 +356,7 @@ static uint32_t band_hash(const cbm_minhash_t *fp, int band) {
 static void bucket_push(lsh_bucket_t *bucket, int entry_index) {
     if (bucket->count >= bucket->cap) {
         int new_cap = bucket->cap < BUCKET_INIT_CAP ? BUCKET_INIT_CAP : bucket->cap * GROW_FACTOR;
-        int *new_items = realloc(bucket->items, (size_t)new_cap * sizeof(int));
+        int *new_items = CBM_REALLOC(bucket->items, (size_t)new_cap * sizeof(int));
         if (!new_items) {
             return;
         }
@@ -366,7 +367,7 @@ static void bucket_push(lsh_bucket_t *bucket, int entry_index) {
 }
 
 cbm_lsh_index_t *cbm_lsh_new(void) {
-    cbm_lsh_index_t *idx = calloc(SKIP_ONE, sizeof(cbm_lsh_index_t));
+    cbm_lsh_index_t *idx = CBM_CALLOC(SKIP_ONE, sizeof(cbm_lsh_index_t));
     return idx;
 }
 
@@ -380,7 +381,7 @@ void cbm_lsh_insert(cbm_lsh_index_t *idx, const cbm_lsh_entry_t *entry) {
         int new_cap =
             idx->entry_cap < ENTRY_INIT_CAP ? ENTRY_INIT_CAP : idx->entry_cap * GROW_FACTOR;
         cbm_lsh_entry_t *new_entries =
-            realloc(idx->entries, (size_t)new_cap * sizeof(cbm_lsh_entry_t));
+            CBM_REALLOC(idx->entries, (size_t)new_cap * sizeof(cbm_lsh_entry_t));
         if (!new_entries) {
             return;
         }
@@ -405,7 +406,7 @@ typedef struct {
 } seen_set_t;
 
 static void seen_set_init(seen_set_t *s) {
-    s->slots = calloc(SEEN_SET_SIZE, sizeof(int64_t));
+    s->slots = CBM_CALLOC(SEEN_SET_SIZE, sizeof(int64_t));
     s->cap = SEEN_SET_SIZE;
     /* 0 means empty — node_ids are always > 0 */
 }
@@ -429,7 +430,7 @@ static bool seen_set_insert(seen_set_t *s, int64_t node_id) {
 }
 
 static void seen_set_free(seen_set_t *s) {
-    free(s->slots);
+    CBM_FREE(s->slots);
     s->slots = NULL;
 }
 
@@ -439,7 +440,7 @@ static bool result_push(cbm_lsh_index_t *idx, const cbm_lsh_entry_t *candidate) 
         int new_cap =
             idx->result_cap < RESULT_INIT_CAP ? RESULT_INIT_CAP : idx->result_cap * GROW_FACTOR;
         const cbm_lsh_entry_t **new_buf =
-            realloc(idx->result_buf, (size_t)new_cap * sizeof(const cbm_lsh_entry_t *));
+            CBM_REALLOC(idx->result_buf, (size_t)new_cap * sizeof(const cbm_lsh_entry_t *));
         if (!new_buf) {
             return false;
         }
@@ -529,10 +530,10 @@ void cbm_lsh_free(cbm_lsh_index_t *idx) {
     /* Free bucket arrays */
     for (int b = 0; b < CBM_LSH_BANDS; b++) {
         for (int h = 0; h < LSH_BUCKET_COUNT; h++) {
-            free(idx->bands[b][h].items);
+            CBM_FREE(idx->bands[b][h].items);
         }
     }
-    free(idx->entries);
-    free(idx->result_buf);
-    free(idx);
+    CBM_FREE(idx->entries);
+    CBM_FREE(idx->result_buf);
+    CBM_FREE(idx);
 }

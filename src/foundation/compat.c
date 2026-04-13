@@ -15,25 +15,7 @@
 #include <sys/stat.h>
 #endif
 
-/* ── strndup (Windows lacks it) ───────────────────────────────── */
 
-#ifdef _WIN32
-char *cbm_strndup(const char *s, size_t n) {
-    if (!s) {
-        return NULL;
-    }
-    size_t len = 0;
-    while (len < n && s[len]) {
-        len++;
-    }
-    char *d = (char *)malloc(len + SKIP_ONE);
-    if (d) {
-        memcpy(d, s, len);
-        d[len] = '\0';
-    }
-    return d;
-}
-#endif
 
 /* ── strcasestr (Windows lacks it) ────────────────────────────── */
 
@@ -54,6 +36,7 @@ char *cbm_strcasestr(const char *haystack, const char *needle) {
 
 #ifdef _WIN32
 #include <direct.h>
+#include "foundation/allocator.h"
 char *cbm_mkdtemp(char *tmpl) {
     /* Build path in static buffer, then copy back to caller.
      * Callers must provide buffers >= CBM_SZ_256 bytes (all test code does). */
@@ -126,7 +109,7 @@ ssize_t cbm_getline(char **lineptr, size_t *n, FILE *stream) {
     }
     if (!*lineptr || *n == 0) {
         *n = CBM_SZ_128;
-        *lineptr = (char *)malloc(*n);
+        *lineptr = (char *)CBM_MALLOC(*n);
         if (!*lineptr) {
             return CBM_NOT_FOUND;
         }
@@ -136,7 +119,7 @@ ssize_t cbm_getline(char **lineptr, size_t *n, FILE *stream) {
     while ((c = fgetc(stream)) != EOF) {
         if (pos + 1 >= *n) {
             size_t new_n = *n * PAIR_LEN;
-            char *tmp = (char *)realloc(*lineptr, new_n);
+            char *tmp = (char *)CBM_REALLOC(*lineptr, new_n);
             if (!tmp) {
                 return CBM_NOT_FOUND;
             }

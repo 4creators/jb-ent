@@ -25,6 +25,7 @@ enum {
 #include <stdint.h> // uint32_t
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* FNV-1a hash constants (published by Fowler/Noll/Vo) */
 #define FNV_OFFSET_BASIS 2166136261U
@@ -55,15 +56,15 @@ static uint32_t next_pow2(uint32_t v) {
 }
 
 CBMHashTable *cbm_ht_create(uint32_t initial_capacity) {
-    CBMHashTable *ht = (CBMHashTable *)calloc(CBM_ALLOC_ONE, sizeof(CBMHashTable));
+    CBMHashTable *ht = (CBMHashTable *)CBM_CALLOC(CBM_ALLOC_ONE, sizeof(CBMHashTable));
     if (!ht) {
         return NULL;
     }
     ht->capacity = next_pow2(initial_capacity);
     ht->mask = ht->capacity - SKIP_ONE;
-    ht->entries = (CBMHTEntry *)calloc(ht->capacity, sizeof(CBMHTEntry));
+    ht->entries = (CBMHTEntry *)CBM_CALLOC(ht->capacity, sizeof(CBMHTEntry));
     if (!ht->entries) {
-        free(ht);
+        CBM_FREE(ht);
         return NULL;
     }
     return ht;
@@ -73,14 +74,14 @@ void cbm_ht_free(CBMHashTable *ht) {
     if (!ht) {
         return;
     }
-    free(ht->entries);
-    free(ht);
+    CBM_FREE(ht->entries);
+    CBM_FREE(ht);
 }
 
 static void ht_resize(CBMHashTable *ht) {
     uint32_t new_cap = ht->capacity * PAIR_LEN;
     uint32_t new_mask = new_cap - SKIP_ONE;
-    CBMHTEntry *new_entries = (CBMHTEntry *)calloc(new_cap, sizeof(CBMHTEntry));
+    CBMHTEntry *new_entries = (CBMHTEntry *)CBM_CALLOC(new_cap, sizeof(CBMHTEntry));
     if (!new_entries) {
         return; /* OOM: keep old table */
     }
@@ -111,7 +112,7 @@ static void ht_resize(CBMHashTable *ht) {
         }
     }
 
-    free(ht->entries);
+    CBM_FREE(ht->entries);
     ht->entries = new_entries;
     ht->capacity = new_cap;
     ht->mask = new_mask;

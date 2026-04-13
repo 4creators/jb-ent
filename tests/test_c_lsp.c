@@ -1503,6 +1503,7 @@ TEST(clsp_adl_std_sort) {
     CBMFileResult *r = extract_cpp("\n"
                                    "#include <vector>\n"
                                    "#include <algorithm>\n"
+#include "foundation/allocator.h"
                                    "\n"
                                    "void test() {\n"
                                    "    std::vector<int> v;\n"
@@ -2882,11 +2883,11 @@ TEST(clsp_probe_c_compound_literal) {
 
 TEST(clsp_probe_c_chained_func_calls) {
     CBMFileResult *r = extract_c("\n"
-                                 "char* strdup(const char* s);\n"
+                                 "char* CBM_STRDUP(const char* s);\n"
                                  "int strlen(const char* s);\n"
                                  "\n"
                                  "void test() {\n"
-                                 "    int len = strlen(strdup(\"hello\"));\n"
+                                 "    int len = strlen(CBM_STRDUP(\"hello\"));\n"
                                  "}\n"
                                  "");
     ASSERT_NOT_NULL(r);
@@ -14185,7 +14186,7 @@ TEST(clsp_c_flex_array_nested) {
 
 TEST(clsp_c_flex_array_malloc) {
     CBMFileResult *r = extract_c("\n"
-                                 "void* malloc(unsigned long size);\n"
+                                 "void* CBM_MALLOC(unsigned long size);\n"
                                  "\n"
                                  "struct DynArray {\n"
                                  "    int count;\n"
@@ -14194,7 +14195,7 @@ TEST(clsp_c_flex_array_malloc) {
                                  "\n"
                                  "void test() {\n"
                                  "    struct DynArray* arr = (struct "
-                                 "DynArray*)malloc(sizeof(struct DynArray) + 10 * sizeof(int));\n"
+                                 "DynArray*)CBM_MALLOC(sizeof(struct DynArray) + 10 * sizeof(int));\n"
                                  "}\n"
                                  "");
     ASSERT_NOT_NULL(r);

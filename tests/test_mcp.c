@@ -78,7 +78,7 @@ TEST(jsonrpc_format_response) {
     ASSERT_NOT_NULL(strstr(json, "\"jsonrpc\":\"2.0\""));
     ASSERT_NOT_NULL(strstr(json, "\"id\":1"));
     ASSERT_NOT_NULL(strstr(json, "\"result\""));
-    free(json);
+    CBM_FREE(json);
     PASS();
 }
 
@@ -89,7 +89,7 @@ TEST(jsonrpc_format_error) {
     ASSERT_NOT_NULL(strstr(json, "\"error\""));
     ASSERT_NOT_NULL(strstr(json, "-32600"));
     ASSERT_NOT_NULL(strstr(json, "Invalid Request"));
-    free(json);
+    CBM_FREE(json);
     PASS();
 }
 
@@ -105,24 +105,24 @@ TEST(mcp_initialize_response) {
     ASSERT_NOT_NULL(strstr(json, "capabilities"));
     ASSERT_NOT_NULL(strstr(json, "tools"));
     ASSERT_NOT_NULL(strstr(json, "2025-11-25"));
-    free(json);
+    CBM_FREE(json);
 
     /* Client requests a supported version: server echoes it */
     json = cbm_mcp_initialize_response("{\"protocolVersion\":\"2024-11-05\"}");
     ASSERT_NOT_NULL(json);
     ASSERT_NOT_NULL(strstr(json, "2024-11-05"));
-    free(json);
+    CBM_FREE(json);
 
     json = cbm_mcp_initialize_response("{\"protocolVersion\":\"2025-06-18\"}");
     ASSERT_NOT_NULL(json);
     ASSERT_NOT_NULL(strstr(json, "2025-06-18"));
-    free(json);
+    CBM_FREE(json);
 
     /* Client requests unknown version: server returns its latest */
     json = cbm_mcp_initialize_response("{\"protocolVersion\":\"9999-01-01\"}");
     ASSERT_NOT_NULL(json);
     ASSERT_NOT_NULL(strstr(json, "2025-11-25"));
-    free(json);
+    CBM_FREE(json);
     PASS();
 }
 
@@ -144,7 +144,7 @@ TEST(mcp_tools_list) {
     ASSERT_NOT_NULL(strstr(json, "detect_changes"));
     ASSERT_NOT_NULL(strstr(json, "manage_adr"));
     ASSERT_NOT_NULL(strstr(json, "ingest_traces"));
-    free(json);
+    CBM_FREE(json);
     PASS();
 }
 
@@ -165,15 +165,15 @@ TEST(mcp_tools_array_schemas_have_items) {
         ASSERT_NOT_NULL(end);
         /* "items" must appear between p and end */
         size_t span = (size_t)(end - p);
-        char *segment = malloc(span + 1);
+        char *segment = CBM_MALLOC(span + 1);
         memcpy(segment, p, span);
         segment[span] = '\0';
         ASSERT_NOT_NULL(strstr(segment, "\"items\"")); /* array missing items */
-        free(segment);
+        CBM_FREE(segment);
         p = end;
     }
 
-    free(json);
+    CBM_FREE(json);
     PASS();
 }
 
@@ -184,7 +184,7 @@ TEST(mcp_text_result) {
     /* The text value is JSON-escaped inside the "text" field */
     ASSERT_NOT_NULL(strstr(json, "total"));
     ASSERT_NULL(strstr(json, "\"isError\":true"));
-    free(json);
+    CBM_FREE(json);
     PASS();
 }
 
@@ -193,7 +193,7 @@ TEST(mcp_text_result_error) {
     ASSERT_NOT_NULL(json);
     ASSERT_NOT_NULL(strstr(json, "\"isError\":true"));
     ASSERT_NOT_NULL(strstr(json, "something failed"));
-    free(json);
+    CBM_FREE(json);
     PASS();
 }
 
@@ -206,7 +206,7 @@ TEST(mcp_get_tool_name) {
     char *name = cbm_mcp_get_tool_name(params);
     ASSERT_NOT_NULL(name);
     ASSERT_STR_EQ(name, "search_graph");
-    free(name);
+    CBM_FREE(name);
     PASS();
 }
 
@@ -217,7 +217,7 @@ TEST(mcp_get_arguments) {
     ASSERT_NOT_NULL(args);
     ASSERT_NOT_NULL(strstr(args, "\"label\":\"Function\""));
     ASSERT_NOT_NULL(strstr(args, "\"limit\":5"));
-    free(args);
+    CBM_FREE(args);
     PASS();
 }
 
@@ -226,12 +226,12 @@ TEST(mcp_get_string_arg) {
     char *val = cbm_mcp_get_string_arg(args, "label");
     ASSERT_NOT_NULL(val);
     ASSERT_STR_EQ(val, "Function");
-    free(val);
+    CBM_FREE(val);
 
     val = cbm_mcp_get_string_arg(args, "name_pattern");
     ASSERT_NOT_NULL(val);
     ASSERT_STR_EQ(val, ".*Order.*");
-    free(val);
+    CBM_FREE(val);
 
     val = cbm_mcp_get_string_arg(args, "nonexistent");
     ASSERT_NULL(val);
@@ -275,7 +275,7 @@ TEST(server_handle_initialize) {
     ASSERT_NOT_NULL(strstr(resp, "\"id\":1"));
     ASSERT_NOT_NULL(strstr(resp, "codebase-memory-mcp"));
     ASSERT_NOT_NULL(strstr(resp, "capabilities"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -302,7 +302,7 @@ TEST(server_handle_tools_list) {
     ASSERT_NOT_NULL(strstr(resp, "\"id\":2"));
     ASSERT_NOT_NULL(strstr(resp, "search_graph"));
     ASSERT_NOT_NULL(strstr(resp, "query_graph"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -316,7 +316,7 @@ TEST(server_handle_unknown_method) {
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "\"error\""));
     ASSERT_NOT_NULL(strstr(resp, "-32601")); /* Method not found */
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -342,7 +342,7 @@ TEST(tool_list_projects_empty) {
     ASSERT_NOT_NULL(strstr(resp, "\"id\":10"));
     /* Should return a result (possibly empty list) */
     ASSERT_NOT_NULL(strstr(resp, "\"result\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -356,7 +356,7 @@ TEST(tool_get_graph_schema_empty) {
                                    "\"params\":{\"name\":\"get_graph_schema\",\"arguments\":{}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "\"result\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -371,7 +371,7 @@ TEST(tool_unknown_tool) {
     ASSERT_NOT_NULL(resp);
     /* Should return result with isError */
     ASSERT_NOT_NULL(strstr(resp, "isError"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -387,7 +387,7 @@ TEST(tool_search_graph_basic) {
                                    "\"arguments\":{\"label\":\"Function\",\"limit\":10}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "\"result\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -402,7 +402,7 @@ TEST(tool_query_graph_basic) {
              "\"arguments\":{\"query\":\"MATCH (f:Function) RETURN f.name\"}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "\"result\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -417,7 +417,7 @@ TEST(tool_index_status_no_project) {
     ASSERT_NOT_NULL(resp);
     /* Should return error or empty status */
     ASSERT_NOT_NULL(strstr(resp, "\"result\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -438,7 +438,7 @@ TEST(tool_trace_call_path_not_found) {
     ASSERT_NOT_NULL(resp);
     /* Should return error about project not found */
     ASSERT_NOT_NULL(strstr(resp, "not found"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -453,7 +453,7 @@ TEST(tool_trace_missing_function_name) {
                                    "\"arguments\":{}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "required"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -468,7 +468,7 @@ TEST(tool_delete_project_not_found) {
                                    "\"arguments\":{\"project\":\"nonexistent\"}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "not_found"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -484,7 +484,7 @@ TEST(tool_get_architecture_empty) {
     ASSERT_NOT_NULL(resp);
     /* No store for nonexistent project — should return project error */
     ASSERT_TRUE(strstr(resp, "not found") || strstr(resp, "not indexed"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -500,7 +500,7 @@ TEST(tool_query_graph_missing_query) {
     ASSERT_NOT_NULL(resp);
     /* Should return error about missing query */
     ASSERT_NOT_NULL(strstr(resp, "required"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -519,7 +519,7 @@ TEST(tool_index_repository_missing_path) {
                                    "\"arguments\":{}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "required"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -534,7 +534,7 @@ TEST(tool_get_code_snippet_missing_qn) {
                                    "\"arguments\":{}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "required"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -550,7 +550,7 @@ TEST(tool_get_code_snippet_not_found) {
                                    "\"project\":\"nonexistent\"}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "not found"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -565,7 +565,7 @@ TEST(tool_search_code_missing_pattern) {
                                    "\"arguments\":{}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "required"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -583,7 +583,7 @@ TEST(tool_search_code_no_project) {
     /* No project indexed → error */
     ASSERT_TRUE(strstr(resp, "not found") || strstr(resp, "not indexed") ||
                 strstr(resp, "required"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -598,7 +598,7 @@ TEST(tool_detect_changes_no_project) {
                                    "\"arguments\":{}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "not found"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -613,14 +613,14 @@ TEST(tool_manage_adr_no_project) {
                                    "\"arguments\":{}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "not found"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
 }
 
 /* Regression test for use-after-free in handle_manage_adr (get path).
- * MUST FAIL before fix: free(buf) is called before yy_doc_to_str serializes doc,
+ * MUST FAIL before fix: CBM_FREE(buf) is called before yy_doc_to_str serializes doc,
  * so result field is missing or contains garbage. MUST PASS after fix. */
 TEST(tool_manage_adr_get_with_existing_adr) {
     /* Create a temp directory with .codebase-memory/adr.md */
@@ -653,7 +653,7 @@ TEST(tool_manage_adr_get_with_existing_adr) {
     cbm_mcp_server_set_project(srv, "test-adr-uaf");
 
     /* Call manage_adr via full JSON-RPC path to exercise cbm_jsonrpc_format_response.
-     * The bug: free(buf) before yy_doc_to_str causes garbage JSON; format_response
+     * The bug: CBM_FREE(buf) before yy_doc_to_str causes garbage JSON; format_response
      * then fails to parse the result and omits the "result" field entirely. */
     char *resp = cbm_mcp_server_handle(
         srv, "{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"tools/call\","
@@ -666,7 +666,7 @@ TEST(tool_manage_adr_get_with_existing_adr) {
     ASSERT_NOT_NULL(strstr(resp, "PURPOSE"));
     /* Must not be an error */
     ASSERT_NULL(strstr(resp, "isError"));
-    free(resp);
+    CBM_FREE(resp);
 
     /* Clean up */
     cbm_mcp_server_free(srv);
@@ -686,7 +686,7 @@ TEST(tool_ingest_traces_basic) {
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "accepted"));
     ASSERT_NOT_NULL(strstr(resp, "traces_received"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -701,7 +701,7 @@ TEST(tool_ingest_traces_empty) {
                                    "\"arguments\":{\"traces\":[]}}}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "accepted"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -717,7 +717,7 @@ TEST(store_idle_eviction) {
 
     /* Trigger resolve_store via a tool call to set store_last_used */
     char *resp = cbm_mcp_handle_tool(srv, "get_graph_schema", "{\"project\":\"test-evict\"}");
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT_TRUE(cbm_mcp_server_has_cached_store(srv));
 
@@ -734,7 +734,7 @@ TEST(store_idle_no_eviction_within_timeout) {
     cbm_mcp_server_set_project(srv, "test-evict");
 
     char *resp = cbm_mcp_handle_tool(srv, "get_graph_schema", "{\"project\":\"test-evict\"}");
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT_TRUE(cbm_mcp_server_has_cached_store(srv));
 
@@ -767,11 +767,11 @@ TEST(store_idle_evict_access_resets_timer) {
 
     /* First access */
     char *resp = cbm_mcp_handle_tool(srv, "get_graph_schema", "{\"project\":\"test-evict\"}");
-    free(resp);
+    CBM_FREE(resp);
 
     /* Second access (resets timer) */
     resp = cbm_mcp_handle_tool(srv, "get_graph_schema", "{\"project\":\"test-evict\"}");
-    free(resp);
+    CBM_FREE(resp);
 
     ASSERT_TRUE(cbm_mcp_server_has_cached_store(srv));
 
@@ -963,21 +963,21 @@ static char *extract_text_content(const char *mcp_result) {
         return NULL;
     yyjson_doc *doc = yyjson_read(mcp_result, strlen(mcp_result), 0);
     if (!doc)
-        return strdup(mcp_result); /* fallback */
+        return CBM_STRDUP(mcp_result); /* fallback */
     yyjson_val *root = yyjson_doc_get_root(doc);
     yyjson_val *content = yyjson_obj_get(root, "content");
     if (!content || !yyjson_is_arr(content)) {
         yyjson_doc_free(doc);
-        return strdup(mcp_result);
+        return CBM_STRDUP(mcp_result);
     }
     yyjson_val *item = yyjson_arr_get(content, 0);
     if (!item) {
         yyjson_doc_free(doc);
-        return strdup(mcp_result);
+        return CBM_STRDUP(mcp_result);
     }
     yyjson_val *text = yyjson_obj_get(item, "text");
     const char *str = yyjson_get_str(text);
-    char *result = str ? strdup(str) : strdup(mcp_result);
+    char *result = str ? CBM_STRDUP(str) : CBM_STRDUP(mcp_result);
     yyjson_doc_free(doc);
     return result;
 }
@@ -987,7 +987,7 @@ static char *extract_text_content(const char *mcp_result) {
 static char *call_snippet(cbm_mcp_server_t *srv, const char *args_json) {
     char *raw = cbm_mcp_handle_tool(srv, "get_code_snippet", args_json);
     char *text = extract_text_content(raw);
-    free(raw);
+    CBM_FREE(raw);
     return text;
 }
 
@@ -1012,7 +1012,7 @@ TEST(snippet_exact_qn) {
     /* Caller/callee counts: 0 callers, 2 callees */
     ASSERT_NOT_NULL(strstr(resp, "\"callers\":0"));
     ASSERT_NOT_NULL(strstr(resp, "\"callees\":2"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1032,7 +1032,7 @@ TEST(snippet_qn_suffix) {
     ASSERT_NOT_NULL(strstr(resp, "\"name\":\"HandleRequest\""));
     ASSERT_NOT_NULL(strstr(resp, "\"match_method\":\"suffix\""));
     ASSERT_NOT_NULL(strstr(resp, "\"source\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1053,7 +1053,7 @@ TEST(snippet_unique_short_name) {
     ASSERT_NOT_NULL(strstr(resp, "\"name\":\"ProcessOrder\""));
     ASSERT_NOT_NULL(strstr(resp, "\"match_method\":\"suffix\""));
     ASSERT_NOT_NULL(strstr(resp, "\"source\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1073,7 +1073,7 @@ TEST(snippet_name_tier) {
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "\"name\":\"HandleRequest\""));
     ASSERT_NOT_NULL(strstr(resp, "\"match_method\":\"suffix\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1101,7 +1101,7 @@ TEST(snippet_ambiguous_short_name) {
     /* Should have at least 2 suggestions with qualified_name */
     ASSERT_NOT_NULL(strstr(resp, "test-project.cmd.server.Run"));
     ASSERT_NOT_NULL(strstr(resp, "test-project.cmd.worker.Run"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1120,7 +1120,7 @@ TEST(snippet_not_found) {
     ASSERT_NOT_NULL(resp);
     /* Should return error or suggestions */
     ASSERT_TRUE(strstr(resp, "not found") || strstr(resp, "suggestions"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1140,7 +1140,7 @@ TEST(snippet_fuzzy_suggestions) {
     ASSERT_NOT_NULL(resp);
     /* Should guide user to search_graph */
     ASSERT_NOT_NULL(strstr(resp, "search_graph"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1161,7 +1161,7 @@ TEST(snippet_enriched_properties) {
     ASSERT_NOT_NULL(strstr(resp, "\"signature\""));
     ASSERT_NOT_NULL(strstr(resp, "\"return_type\""));
     ASSERT_NOT_NULL(strstr(resp, "\"is_exported\":true"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1181,7 +1181,7 @@ TEST(snippet_fuzzy_last_segment) {
     ASSERT_NOT_NULL(resp);
     /* Should either find it via suffix or guide to search_graph */
     ASSERT_TRUE(strstr(resp, "HandleRequest") != NULL || strstr(resp, "search_graph") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1201,7 +1201,7 @@ TEST(snippet_auto_resolve_default) {
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "\"status\":\"ambiguous\""));
     ASSERT_NULL(strstr(resp, "\"source\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1221,7 +1221,7 @@ TEST(snippet_auto_resolve_enabled) {
     ASSERT_NOT_NULL(resp);
     /* "Run" matches multiple nodes via suffix → should get suggestions or source */
     ASSERT_TRUE(strstr(resp, "Run") != NULL);
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1245,7 +1245,7 @@ TEST(snippet_include_neighbors_default) {
     /* But should still have counts */
     ASSERT_NOT_NULL(strstr(resp, "\"callers\""));
     ASSERT_NOT_NULL(strstr(resp, "\"callees\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1270,7 +1270,7 @@ TEST(snippet_include_neighbors_enabled) {
     ASSERT_NOT_NULL(strstr(resp, "\"callee_names\""));
     ASSERT_NOT_NULL(strstr(resp, "ProcessOrder"));
     ASSERT_NOT_NULL(strstr(resp, "Run"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     cleanup_snippet_dir(tmp);
@@ -1384,7 +1384,7 @@ TEST(mcp_get_string_arg_nested_value) {
     val = cbm_mcp_get_string_arg(args, "name");
     ASSERT_NOT_NULL(val);
     ASSERT_STR_EQ(val, "hello");
-    free(val);
+    CBM_FREE(val);
     PASS();
 }
 
@@ -1451,7 +1451,7 @@ TEST(mcp_get_arguments_no_arguments_key) {
     char *args = cbm_mcp_get_arguments("{\"name\":\"tool\"}");
     ASSERT_NOT_NULL(args);
     ASSERT_STR_EQ(args, "{}");
-    free(args);
+    CBM_FREE(args);
     PASS();
 }
 
@@ -1514,7 +1514,7 @@ TEST(server_handle_invalid_json) {
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "\"error\""));
     ASSERT_NOT_NULL(strstr(resp, "-32700")); /* Parse error */
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -1527,7 +1527,7 @@ TEST(server_handle_empty_object) {
     char *resp = cbm_mcp_server_handle(srv, "{}");
     ASSERT_NOT_NULL(resp);
     ASSERT_NOT_NULL(strstr(resp, "\"error\""));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -1544,7 +1544,7 @@ TEST(server_handle_tools_call_missing_name) {
     /* Should return error about unknown/missing tool */
     ASSERT_NOT_NULL(strstr(resp, "\"id\":50"));
     ASSERT_TRUE(strstr(resp, "error") || strstr(resp, "isError") || strstr(resp, "unknown"));
-    free(resp);
+    CBM_FREE(resp);
 
     cbm_mcp_server_free(srv);
     PASS();
@@ -1557,6 +1557,7 @@ TEST(server_handle_tools_call_missing_name) {
 #ifndef _WIN32
 #include <unistd.h>
 #include <signal.h>
+#include "foundation/allocator.h"
 
 /* Signal handler used by alarm() to abort the test if it hangs */
 static void alarm_handler(int sig) {

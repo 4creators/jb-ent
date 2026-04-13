@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <zlib.h>
+#include "foundation/allocator.h"
 
 /* Helper: create a file with content */
 static int write_test_file(const char *path, const char *content) {
@@ -69,7 +70,7 @@ static unsigned char *create_test_targz(const char *filename, const unsigned cha
     /* Build tar data: 512-byte header + content padded to 512-byte boundary + 2x512 zero blocks */
     int data_blocks = (content_len + 511) / 512;
     int tar_size = 512 + data_blocks * 512 + 1024; /* header + data + end-of-archive */
-    unsigned char *tar = calloc(1, (size_t)tar_size);
+    unsigned char *tar = CBM_CALLOC(1, (size_t)tar_size);
     if (!tar)
         return NULL;
 
@@ -109,15 +110,15 @@ static unsigned char *create_test_targz(const char *filename, const unsigned cha
     z_stream strm = {0};
     if (deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16 + MAX_WBITS, 8,
                      Z_DEFAULT_STRATEGY) != Z_OK) {
-        free(tar);
+        CBM_FREE(tar);
         return NULL;
     }
 
     size_t gz_cap = (size_t)tar_size + 256;
-    unsigned char *gz = malloc(gz_cap);
+    unsigned char *gz = CBM_MALLOC(gz_cap);
     if (!gz) {
         deflateEnd(&strm);
-        free(tar);
+        CBM_FREE(tar);
         return NULL;
     }
 
@@ -130,7 +131,7 @@ static unsigned char *create_test_targz(const char *filename, const unsigned cha
     *out_len = (int)(gz_cap - strm.avail_out);
 
     deflateEnd(&strm);
-    free(tar);
+    CBM_FREE(tar);
     return gz;
 }
 
@@ -180,7 +181,7 @@ TEST(cli_detect_shell_rc_zsh) {
 
     /* Save and override SHELL — must strdup because setenv may realloc env block */
     const char *raw = getenv("SHELL");
-    char *old_shell = raw ? strdup(raw) : NULL;
+    char *old_shell = raw ? CBM_STRDUP(raw) : NULL;
     cbm_setenv("SHELL", "/bin/zsh", 1);
 
     const char *rc = cbm_detect_shell_rc(tmpdir);
@@ -189,7 +190,7 @@ TEST(cli_detect_shell_rc_zsh) {
 
     if (old_shell) {
         cbm_setenv("SHELL", old_shell, 1);
-        free(old_shell);
+        CBM_FREE(old_shell);
     } else
         cbm_unsetenv("SHELL");
     rmdir(tmpdir);
@@ -203,7 +204,7 @@ TEST(cli_detect_shell_rc_bash) {
         SKIP("cbm_mkdtemp failed");
 
     const char *raw = getenv("SHELL");
-    char *old_shell = raw ? strdup(raw) : NULL;
+    char *old_shell = raw ? CBM_STRDUP(raw) : NULL;
     cbm_setenv("SHELL", "/bin/bash", 1);
 
     /* No .bashrc → falls back to .bash_profile */
@@ -213,7 +214,7 @@ TEST(cli_detect_shell_rc_bash) {
 
     if (old_shell) {
         cbm_setenv("SHELL", old_shell, 1);
-        free(old_shell);
+        CBM_FREE(old_shell);
     } else
         cbm_unsetenv("SHELL");
     rmdir(tmpdir);
@@ -228,7 +229,7 @@ TEST(cli_detect_shell_rc_bash_with_bashrc) {
         SKIP("cbm_mkdtemp failed");
 
     const char *raw = getenv("SHELL");
-    char *old_shell = raw ? strdup(raw) : NULL;
+    char *old_shell = raw ? CBM_STRDUP(raw) : NULL;
     cbm_setenv("SHELL", "/bin/bash", 1);
 
     /* Create .bashrc */
@@ -242,7 +243,7 @@ TEST(cli_detect_shell_rc_bash_with_bashrc) {
     unlink(bashrc);
     if (old_shell) {
         cbm_setenv("SHELL", old_shell, 1);
-        free(old_shell);
+        CBM_FREE(old_shell);
     } else
         cbm_unsetenv("SHELL");
     rmdir(tmpdir);
@@ -256,7 +257,7 @@ TEST(cli_detect_shell_rc_fish) {
         SKIP("cbm_mkdtemp failed");
 
     const char *raw = getenv("SHELL");
-    char *old_shell = raw ? strdup(raw) : NULL;
+    char *old_shell = raw ? CBM_STRDUP(raw) : NULL;
     cbm_setenv("SHELL", "/usr/bin/fish", 1);
 
     const char *rc = cbm_detect_shell_rc(tmpdir);
@@ -264,7 +265,7 @@ TEST(cli_detect_shell_rc_fish) {
 
     if (old_shell) {
         cbm_setenv("SHELL", old_shell, 1);
-        free(old_shell);
+        CBM_FREE(old_shell);
     } else
         cbm_unsetenv("SHELL");
     rmdir(tmpdir);
@@ -278,7 +279,7 @@ TEST(cli_detect_shell_rc_default) {
         SKIP("cbm_mkdtemp failed");
 
     const char *raw = getenv("SHELL");
-    char *old_shell = raw ? strdup(raw) : NULL;
+    char *old_shell = raw ? CBM_STRDUP(raw) : NULL;
     cbm_setenv("SHELL", "/bin/sh", 1);
 
     const char *rc = cbm_detect_shell_rc(tmpdir);
@@ -286,7 +287,7 @@ TEST(cli_detect_shell_rc_default) {
 
     if (old_shell) {
         cbm_setenv("SHELL", old_shell, 1);
-        free(old_shell);
+        CBM_FREE(old_shell);
     } else
         cbm_unsetenv("SHELL");
     rmdir(tmpdir);
@@ -305,7 +306,7 @@ TEST(cli_find_cli_not_found) {
         SKIP("cbm_mkdtemp failed");
 
     const char *raw = getenv("PATH");
-    char *old_path = raw ? strdup(raw) : NULL;
+    char *old_path = raw ? CBM_STRDUP(raw) : NULL;
     cbm_setenv("PATH", tmpdir, 1);
 
     const char *result = cbm_find_cli("nonexistent-binary-xyz", tmpdir);
@@ -313,7 +314,7 @@ TEST(cli_find_cli_not_found) {
 
     if (old_path) {
         cbm_setenv("PATH", old_path, 1);
-        free(old_path);
+        CBM_FREE(old_path);
     }
     rmdir(tmpdir);
     PASS();
@@ -336,7 +337,7 @@ TEST(cli_find_cli_on_path) {
     SKIP("PATH-based CLI lookup uses POSIX semantics");
 #endif
     const char *raw = getenv("PATH");
-    char *old_path = raw ? strdup(raw) : NULL;
+    char *old_path = raw ? CBM_STRDUP(raw) : NULL;
     cbm_setenv("PATH", tmpdir, 1);
 
     const char *result = cbm_find_cli("fakecli", tmpdir);
@@ -345,7 +346,7 @@ TEST(cli_find_cli_on_path) {
 
     if (old_path) {
         cbm_setenv("PATH", old_path, 1);
-        free(old_path);
+        CBM_FREE(old_path);
     }
     unlink(fakecli);
     rmdir(tmpdir);
@@ -373,7 +374,7 @@ TEST(cli_find_cli_fallback_paths) {
     th_make_executable(fakecli);
 
     const char *raw = getenv("PATH");
-    char *old_path = raw ? strdup(raw) : NULL;
+    char *old_path = raw ? CBM_STRDUP(raw) : NULL;
     cbm_setenv("PATH", "/nonexistent", 1);
 
     const char *result = cbm_find_cli("testcli", tmpdir);
@@ -381,7 +382,7 @@ TEST(cli_find_cli_fallback_paths) {
 
     if (old_path) {
         cbm_setenv("PATH", old_path, 1);
-        free(old_path);
+        CBM_FREE(old_path);
     }
     test_rmdir_r(tmpdir);
     PASS();
@@ -1016,8 +1017,8 @@ TEST(cli_extract_binary_from_targz) {
     ASSERT_EQ(out_len, (int)strlen(content));
     ASSERT_MEM_EQ(extracted, content, out_len);
 
-    free(extracted);
-    free(gz);
+    CBM_FREE(extracted);
+    CBM_FREE(gz);
     PASS();
 }
 
@@ -1033,7 +1034,7 @@ TEST(cli_extract_binary_from_targz_not_found) {
     unsigned char *extracted = cbm_extract_binary_from_targz(gz, gz_len, &out_len);
     ASSERT_NULL(extracted);
 
-    free(gz);
+    CBM_FREE(gz);
     PASS();
 }
 
@@ -1059,7 +1060,7 @@ static unsigned char *create_test_zip_stored(const char *filename, const unsigne
     int cd_hdr_sz = 46 + name_len;
     int eocd_sz = 22;
     int total = local_hdr_sz + content_len + cd_hdr_sz + eocd_sz;
-    unsigned char *zip = calloc(1, (size_t)total);
+    unsigned char *zip = CBM_CALLOC(1, (size_t)total);
     if (!zip)
         return NULL;
     int pos = 0;
@@ -1137,8 +1138,8 @@ TEST(cli_extract_binary_from_zip) {
     ASSERT_NOT_NULL(extracted);
     ASSERT_EQ(out_len, (int)strlen(content));
     ASSERT_MEM_EQ(extracted, content, (size_t)out_len);
-    free(extracted);
-    free(zip);
+    CBM_FREE(extracted);
+    CBM_FREE(zip);
     PASS();
 }
 
@@ -1152,7 +1153,7 @@ TEST(cli_extract_binary_from_zip_not_found) {
     int out_len = 0;
     unsigned char *extracted = cbm_extract_binary_from_zip(zip, zip_len, &out_len);
     ASSERT_NULL(extracted);
-    free(zip);
+    CBM_FREE(zip);
     PASS();
 }
 
@@ -1167,7 +1168,7 @@ TEST(cli_extract_binary_from_zip_path_traversal) {
     int out_len = 0;
     unsigned char *extracted = cbm_extract_binary_from_zip(zip, zip_len, &out_len);
     ASSERT_NULL(extracted);
-    free(zip);
+    CBM_FREE(zip);
     PASS();
 }
 

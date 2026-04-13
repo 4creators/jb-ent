@@ -25,6 +25,7 @@ enum { REG_INIT_CAP = 16, REG_MIN_CANDIDATES = 3, REG_RESOLVED = 1, REG_SUFFIX_A
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* Confidence score → human-readable band label. */
 #define CONF_BAND_HIGH 0.7
@@ -163,7 +164,7 @@ static cbm_resolution_t empty_result(void) {
 /* ── Lifecycle ──────────────────────────────────────────────────── */
 
 cbm_registry_t *cbm_registry_new(void) {
-    cbm_registry_t *r = calloc(CBM_ALLOC_ONE, sizeof(cbm_registry_t));
+    cbm_registry_t *r = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_registry_t));
     if (!r) {
         return NULL;
     }
@@ -174,8 +175,8 @@ cbm_registry_t *cbm_registry_new(void) {
 
 static void free_label(const char *key, void *value, void *ud) {
     (void)ud;
-    free((void *)key);
-    free(value);
+    CBM_FREE((void *)key);
+    CBM_FREE(value);
 }
 
 static void free_qn_array(const char *key, void *value, void *ud) {
@@ -183,12 +184,12 @@ static void free_qn_array(const char *key, void *value, void *ud) {
     qn_array_t *arr = value;
     if (arr) {
         for (int i = 0; i < arr->count; i++) {
-            free(arr->items[i]);
+            CBM_FREE(arr->items[i]);
         }
         cbm_da_free(arr);
-        free(arr);
+        CBM_FREE(arr);
     }
-    free((void *)key);
+    CBM_FREE((void *)key);
 }
 
 void cbm_registry_free(cbm_registry_t *r) {
@@ -199,7 +200,7 @@ void cbm_registry_free(cbm_registry_t *r) {
     cbm_ht_free(r->exact);
     cbm_ht_foreach(r->by_name, free_qn_array, NULL);
     cbm_ht_free(r->by_name);
-    free(r);
+    CBM_FREE(r);
 }
 
 /* ── Registration ────────────────────────────────────────────────── */
@@ -217,17 +218,17 @@ void cbm_registry_add(cbm_registry_t *r, const char *name, const char *qualified
     }
 
     /* Store in exact map: QN → label */
-    cbm_ht_set(r->exact, strdup(qualified_name), strdup(label));
+    cbm_ht_set(r->exact, CBM_STRDUP(qualified_name), CBM_STRDUP(label));
 
     /* Index by simple name.
      * No array dedup needed: exact-map check above guarantees uniqueness. */
     const char *simple = simple_name(qualified_name);
     qn_array_t *arr = cbm_ht_get(r->by_name, simple);
     if (!arr) {
-        arr = calloc(CBM_ALLOC_ONE, sizeof(qn_array_t));
-        cbm_ht_set(r->by_name, strdup(simple), arr);
+        arr = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(qn_array_t));
+        cbm_ht_set(r->by_name, CBM_STRDUP(simple), arr);
     }
-    cbm_da_push(arr, strdup(qualified_name));
+    cbm_da_push(arr, CBM_STRDUP(qualified_name));
 }
 
 /* ── Lookup ──────────────────────────────────────────────────────── */
@@ -579,14 +580,14 @@ int cbm_registry_find_ending_with(const cbm_registry_t *r, const char *suffix, c
 
     /* Build ".suffix" target */
     size_t slen = strlen(suffix);
-    char *target = malloc(slen + REG_SUFFIX_ALLOC);
+    char *target = CBM_MALLOC(slen + REG_SUFFIX_ALLOC);
     target[0] = '.';
     memcpy(target + SKIP_ONE, suffix, slen + SKIP_ONE);
 
     struct few_ctx ctx = {target, slen + SKIP_ONE, NULL, 0, 0};
     cbm_ht_foreach(r->exact, few_scan, &ctx);
 
-    free(target);
+    CBM_FREE(target);
     *out = ctx.results;
     return ctx.count;
 }

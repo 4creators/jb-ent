@@ -6,9 +6,9 @@
  *
  * Tier 1 (≤64B): Fixed-size slab free list — O(1) alloc/free.
  *   Matches tree-sitter SubtreeHeapData (CBM_SZ_64 bytes). Backed by
- *   64KB slab pages via malloc (= mimalloc in production).
+ *   64KB slab pages via CBM_MALLOC(= mimalloc in production).
  *
- * All allocations >64B go directly to malloc (= mimalloc in production),
+ * All allocations >64B go directly to CBM_MALLOC(= mimalloc in production),
  * which handles size classes, thread caching, and OS page return
  * far better than a hand-rolled tier2 bump allocator.
  *
@@ -21,6 +21,7 @@
 #define CBM_SLAB_ALLOC_H
 
 #include <stddef.h>
+#include "foundation/allocator.h"
 
 /* Install slab allocator as tree-sitter's malloc/calloc/realloc/free.
  * Must be called once before any ts_parser_new() calls. Thread-safe. */

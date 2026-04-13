@@ -26,9 +26,10 @@ enum { PD_RING = 4, PD_RING_MASK = 3, PD_JSON_MARGIN = 10, PD_ESC_MARGIN = 3, PD
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* Read entire file into heap-allocated buffer. Returns NULL on error.
- * Caller must free(). Sets *out_len to byte count. */
+ * Caller must CBM_FREE(). Sets *out_len to byte count. */
 static char *read_file(const char *path, int *out_len) {
     FILE *f = fopen(path, "rb");
     if (!f) {
@@ -45,7 +46,7 @@ static char *read_file(const char *path, int *out_len) {
         return NULL;
     }
 
-    char *buf = malloc(size + SKIP_ONE);
+    char *buf = CBM_MALLOC(size + SKIP_ONE);
     if (!buf) {
         (void)fclose(f);
         return NULL;
@@ -240,7 +241,7 @@ static void process_def(cbm_pipeline_ctx_t *ctx, const CBMDefinition *def, const
     if (file_node && node_id > 0) {
         cbm_gbuf_insert_edge(ctx->gbuf, file_node->id, node_id, "DEFINES", "{}");
     }
-    free(file_qn);
+    CBM_FREE(file_qn);
     if (def->parent_class && def->label && strcmp(def->label, "Method") == 0) {
         const cbm_gbuf_node_t *parent = cbm_gbuf_find_by_qn(ctx->gbuf, def->parent_class);
         if (parent && node_id > 0) {
@@ -261,7 +262,7 @@ static const cbm_gbuf_node_t *find_channel_source(cbm_pipeline_ctx_t *ctx, const
     if (!node) {
         char *file_qn = cbm_pipeline_fqn_compute(ctx->project_name, rel, "__file__");
         node = cbm_gbuf_find_by_qn(ctx->gbuf, file_qn);
-        free(file_qn);
+        CBM_FREE(file_qn);
     }
     return node;
 }
@@ -307,7 +308,7 @@ static int create_import_edges_for_file(cbm_pipeline_ctx_t *ctx, const CBMFileRe
         char *resolved = cbm_pipeline_resolve_relative_import(rel, imp->module_path);
         if (resolved) {
             target_qn = cbm_pipeline_fqn_module(ctx->project_name, resolved);
-            free(resolved);
+            CBM_FREE(resolved);
         } else {
             target_qn = cbm_pipeline_fqn_module(ctx->project_name, imp->module_path);
         }
@@ -321,8 +322,8 @@ static int create_import_edges_for_file(cbm_pipeline_ctx_t *ctx, const CBMFileRe
             cbm_gbuf_insert_edge(ctx->gbuf, source_node->id, target->id, "IMPORTS", imp_props);
             count++;
         }
-        free(target_qn);
-        free(file_qn);
+        CBM_FREE(target_qn);
+        CBM_FREE(file_qn);
     }
     return count;
 }
@@ -361,7 +362,7 @@ int cbm_pipeline_pass_definitions(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t
             cbm_extract_file(source, source_len, lang, ctx->project_name, rel, CBM_EXTRACT_BUDGET,
                              NULL, NULL /* no extra defines or include paths */
             );
-        free(source);
+        CBM_FREE(source);
 
         if (!result) {
             errors++;

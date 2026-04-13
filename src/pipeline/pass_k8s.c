@@ -24,11 +24,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "foundation/allocator.h"
 
 /* ── Internal helpers ────────────────────────────────────────────── */
 
 /* Read entire file into heap-allocated buffer. Returns NULL on error.
- * Caller must free(). Sets *out_len to byte count. */
+ * Caller must CBM_FREE(). Sets *out_len to byte count. */
 static char *k8s_read_file(const char *path, int *out_len) {
     FILE *f = fopen(path, "rb");
     if (!f) {
@@ -44,7 +45,7 @@ static char *k8s_read_file(const char *path, int *out_len) {
         return NULL;
     }
 
-    char *buf = malloc(size + SKIP_ONE);
+    char *buf = CBM_MALLOC(size + SKIP_ONE);
     if (!buf) {
         (void)fclose(f);
         return NULL;
@@ -89,7 +90,7 @@ static void handle_kustomize(cbm_pipeline_ctx_t *ctx, const char *path, const ch
 
     int64_t mod_id = cbm_gbuf_upsert_node(ctx->gbuf, "Module", k8s_basename(rel_path), mod_qn,
                                           rel_path, SKIP_ONE, 0, "{\"source\":\"kustomize\"}");
-    free(mod_qn);
+    CBM_FREE(mod_qn);
 
     if (mod_id <= 0) {
         return;
@@ -108,7 +109,7 @@ static void handle_kustomize(cbm_pipeline_ctx_t *ctx, const char *path, const ch
         if (source) {
             res = cbm_extract_file(source, src_len, CBM_LANG_KUSTOMIZE, ctx->project_name, rel_path,
                                    CBM_EXTRACT_BUDGET, NULL, NULL);
-            free(source);
+            CBM_FREE(source);
             allocated = true;
         }
     }
@@ -128,7 +129,7 @@ static void handle_kustomize(cbm_pipeline_ctx_t *ctx, const char *path, const ch
             }
 
             const cbm_gbuf_node_t *target = cbm_gbuf_find_by_qn(ctx->gbuf, target_qn);
-            free(target_qn);
+            CBM_FREE(target_qn);
 
             if (target) {
                 cbm_gbuf_insert_edge(ctx->gbuf, mod_id, target->id, "IMPORTS",
@@ -163,7 +164,7 @@ static void handle_k8s_manifest(cbm_pipeline_ctx_t *ctx, const char *path, const
     /* Compute file node QN for DEFINES edges */
     char *file_qn = cbm_pipeline_fqn_compute(ctx->project_name, rel_path, "__file__");
     const cbm_gbuf_node_t *file_node = file_qn ? cbm_gbuf_find_by_qn(ctx->gbuf, file_qn) : NULL;
-    free(file_qn);
+    CBM_FREE(file_qn);
 
     for (int d = 0; d < res->defs.count; d++) {
         CBMDefinition *def = &res->defs.items[d];
@@ -231,7 +232,7 @@ int cbm_pipeline_pass_k8s(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t *files,
                     handle_k8s_manifest(ctx, path, rel, source, src_len);
                     manifest_count++;
                 }
-                free(source);
+                CBM_FREE(source);
             }
         }
     }

@@ -175,7 +175,7 @@ static void handle_logs(struct mg_connection *c, struct mg_http_message *hm) {
 
     /* Copy lines under lock */
     size_t buf_size = (size_t)count * (LOG_LINE_MAX + 10) + 64;
-    char *buf = malloc(buf_size);
+    char *buf = CBM_MALLOC(buf_size);
     if (!buf) {
         cbm_mutex_unlock(&g_log_mutex);
         mg_http_reply(c, 500, g_cors, "oom");
@@ -211,7 +211,7 @@ static void handle_logs(struct mg_connection *c, struct mg_http_message *hm) {
     pos += snprintf(buf + pos, buf_size - (size_t)pos, "],\"total\":%d}", total);
 
     mg_http_reply(c, 200, g_cors_json, "%s", buf);
-    free(buf);
+    CBM_FREE(buf);
 }
 
 /* ── Process monitoring ───────────────────────────────────────── */
@@ -373,6 +373,7 @@ static void handle_process_kill(struct mg_connection *c, struct mg_http_message 
 /* ── Directory browser ────────────────────────────────────────── */
 
 #include "foundation/compat_fs.h"
+#include "foundation/allocator.h"
 
 /* GET /api/browse?path=/some/dir — list subdirectories for file picker */
 static void handle_browse(struct mg_connection *c, struct mg_http_message *hm) {
@@ -466,7 +467,7 @@ static void handle_adr_get(struct mg_connection *c, struct mg_http_message *hm) 
         /* Escape content for JSON — simple: replace quotes and newlines */
         size_t clen = strlen(adr.content);
         size_t buf_size = clen * 2 + 256;
-        char *buf = malloc(buf_size);
+        char *buf = CBM_MALLOC(buf_size);
         if (buf) {
             int pos = snprintf(buf, buf_size, "{\"has_adr\":true,\"content\":\"");
             for (size_t i = 0; i < clen && (size_t)pos < buf_size - 10; i++) {
@@ -491,7 +492,7 @@ static void handle_adr_get(struct mg_connection *c, struct mg_http_message *hm) 
             pos += snprintf(buf + pos, buf_size - (size_t)pos, "\",\"updated_at\":\"%s\"}",
                             adr.updated_at ? adr.updated_at : "");
             mg_http_reply(c, 200, g_cors_json, "%s", buf);
-            free(buf);
+            CBM_FREE(buf);
         } else {
             mg_http_reply(c, 500, g_cors, "oom");
         }
@@ -509,7 +510,7 @@ static void handle_adr_save(struct mg_connection *c, struct mg_http_message *hm)
         return;
     }
 
-    char *body = malloc(hm->body.len + 1);
+    char *body = CBM_MALLOC(hm->body.len + 1);
     if (!body) {
         mg_http_reply(c, 500, g_cors, "oom");
         return;
@@ -518,7 +519,7 @@ static void handle_adr_save(struct mg_connection *c, struct mg_http_message *hm)
     body[hm->body.len] = '\0';
 
     yyjson_doc *doc = yyjson_read(body, hm->body.len, 0);
-    free(body);
+    CBM_FREE(body);
     if (!doc) {
         mg_http_reply(c, 400, g_cors_json, "{\"error\":\"invalid json\"}");
         return;
@@ -940,7 +941,7 @@ static void handle_layout(struct mg_connection *c, struct mg_http_message *hm) {
     }
 
     mg_http_reply(c, 200, g_cors_json, "%s", json);
-    free(json);
+    CBM_FREE(json);
 }
 
 /* ── Handle JSON-RPC request ──────────────────────────────────── */
@@ -954,7 +955,7 @@ static void handle_rpc(struct mg_connection *c, struct mg_http_message *hm, cbm_
     }
 
     /* NUL-terminate the body for cbm_mcp_server_handle */
-    char *body = malloc(hm->body.len + 1);
+    char *body = CBM_MALLOC(hm->body.len + 1);
     if (!body) {
         mg_http_reply(c, 500, g_cors, "out of memory");
         return;
@@ -963,11 +964,11 @@ static void handle_rpc(struct mg_connection *c, struct mg_http_message *hm, cbm_
     body[hm->body.len] = '\0';
 
     char *response = cbm_mcp_server_handle(mcp, body);
-    free(body);
+    CBM_FREE(body);
 
     if (response) {
         mg_http_reply(c, 200, g_cors_json, "%s", response);
-        free(response);
+        CBM_FREE(response);
     } else {
         mg_http_reply(c, 204, g_cors, "");
     }
@@ -1123,7 +1124,7 @@ static void http_handler(struct mg_connection *c, int ev, void *ev_data) {
 /* ── Public API ───────────────────────────────────────────────── */
 
 cbm_http_server_t *cbm_http_server_new(int port) {
-    cbm_http_server_t *srv = calloc(1, sizeof(*srv));
+    cbm_http_server_t *srv = CBM_CALLOC(1, sizeof(*srv));
     if (!srv)
         return NULL;
 
@@ -1134,7 +1135,7 @@ cbm_http_server_t *cbm_http_server_new(int port) {
     srv->mcp = cbm_mcp_server_new(NULL);
     if (!srv->mcp) {
         cbm_log_error("ui.http.mcp_fail", "reason", "cannot create MCP instance");
-        free(srv);
+        CBM_FREE(srv);
         return NULL;
     }
 
@@ -1154,7 +1155,7 @@ cbm_http_server_t *cbm_http_server_new(int port) {
                      "use --port=N to override");
         cbm_mcp_server_free(srv->mcp);
         mg_mgr_free(&srv->mgr);
-        free(srv);
+        CBM_FREE(srv);
         return NULL;
     }
 
@@ -1172,7 +1173,7 @@ void cbm_http_server_free(cbm_http_server_t *srv) {
         return;
     mg_mgr_free(&srv->mgr);
     cbm_mcp_server_free(srv->mcp);
-    free(srv);
+    CBM_FREE(srv);
 }
 
 void cbm_http_server_stop(cbm_http_server_t *srv) {

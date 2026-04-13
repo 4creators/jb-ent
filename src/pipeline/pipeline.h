@@ -19,6 +19,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "foundation/allocator.h"
 
 /* Forward declarations */
 typedef struct cbm_store cbm_store_t;
@@ -79,13 +80,13 @@ void cbm_pipeline_unlock(void);
 
 /* Compute a qualified name: project.dir.parts.name
  * Strips extension, converts / to ., drops __init__ and index.
- * Caller must free() the returned string. */
+ * Caller must CBM_FREE() the returned string. */
 char *cbm_pipeline_fqn_compute(const char *project, const char *rel_path, const char *name);
 
-/* Module QN: project.dir.parts (no name). Caller must free(). */
+/* Module QN: project.dir.parts (no name). Caller must CBM_FREE(). */
 char *cbm_pipeline_fqn_module(const char *project, const char *rel_path);
 
-/* Folder QN: project.dir.parts. Caller must free(). */
+/* Folder QN: project.dir.parts. Caller must CBM_FREE(). */
 char *cbm_pipeline_fqn_folder(const char *project, const char *rel_dir);
 
 /* Resolve an import specifier that uses a relative path (./foo, ../bar, .foo,
@@ -100,7 +101,7 @@ char *cbm_pipeline_resolve_relative_import(const char *source_rel, const char *m
 
 /* Derive project name from an absolute path.
  * Replaces / and : with -, collapses --, trims leading -.
- * Caller must free() the returned string. */
+ * Caller must CBM_FREE() the returned string. */
 char *cbm_project_name_from_path(const char *abs_path);
 
 /* ── Function Registry ──────────────────────────────────────────── */
@@ -145,7 +146,7 @@ int cbm_registry_size(const cbm_registry_t *r);
 
 /* Find all qualified names ending with ".suffix".
  * Sets *out to heap-allocated array of borrowed string pointers.
- * Caller must free(*out) but NOT the individual strings.
+ * Caller must CBM_FREE(*out) but NOT the individual strings.
  * Returns count of matches. */
 int cbm_registry_find_ending_with(const cbm_registry_t *r, const char *suffix, const char ***out);
 

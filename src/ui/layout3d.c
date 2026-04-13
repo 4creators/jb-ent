@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "foundation/allocator.h"
 
 /* ── Constants ────────────────────────────────────────────────── */
 
@@ -120,7 +121,7 @@ typedef struct octree_node {
 } octree_node_t;
 
 static octree_node_t *octree_new(float ox, float oy, float oz, float half) {
-    octree_node_t *n = calloc(CBM_ALLOC_ONE, sizeof(*n));
+    octree_node_t *n = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*n));
     if (!n)
         return NULL;
     n->ox = ox;
@@ -135,7 +136,7 @@ static void octree_free(octree_node_t *n) {
         return;
     for (int i = 0; i < 8; i++)
         octree_free(n->children[i]);
-    free(n);
+    CBM_FREE(n);
 }
 static int octant(octree_node_t *n, float x, float y, float z) {
     return ((x >= n->ox) ? 1 : 0) | ((y >= n->oy) ? 2 : 0) | ((z >= n->oz) ? 4 : 0);
@@ -291,7 +292,7 @@ static void compute_call_depth(int n, const int *es, const int *ed, int ne, cons
                                int *depth) {
     for (int i = 0; i < n; i++)
         depth[i] = -1;
-    int *q = malloc((size_t)n * sizeof(int));
+    int *q = CBM_MALLOC((size_t)n * sizeof(int));
     int head = 0, tail = 0;
     if (!q)
         return;
@@ -305,7 +306,7 @@ static void compute_call_depth(int n, const int *es, const int *ed, int ne, cons
         }
     }
     if (tail == 0) {
-        int *in_d = calloc((size_t)n, sizeof(int));
+        int *in_d = CBM_CALLOC((size_t)n, sizeof(int));
         if (in_d) {
             for (int e = 0; e < ne; e++) {
                 int t = ed[e];
@@ -317,7 +318,7 @@ static void compute_call_depth(int n, const int *es, const int *ed, int ne, cons
                     depth[i] = 0;
                     q[tail++] = i;
                 }
-            free(in_d);
+            CBM_FREE(in_d);
         }
     }
     while (head < tail) {
@@ -334,7 +335,7 @@ static void compute_call_depth(int n, const int *es, const int *ed, int ne, cons
     for (int i = 0; i < n; i++)
         if (depth[i] == -1)
             depth[i] = 0;
-    free(q);
+    CBM_FREE(q);
 }
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -343,11 +344,11 @@ static void free_edge_array(cbm_edge_t *edges, int count) {
     if (!edges)
         return;
     for (int i = 0; i < count; i++) {
-        free((void *)edges[i].project);
-        free((void *)edges[i].type);
-        free((void *)edges[i].properties_json);
+        CBM_FREE((void *)edges[i].project);
+        CBM_FREE((void *)edges[i].type);
+        CBM_FREE((void *)edges[i].properties_json);
     }
-    free(edges);
+    CBM_FREE(edges);
 }
 
 /* ── Node ID → index map (for O(log n) edge filtering) ───────── */
@@ -404,22 +405,22 @@ cbm_layout_result_t *cbm_layout_compute(cbm_store_t *store, const char *project,
     cbm_search_output_t search_out;
     memset(&search_out, 0, sizeof(search_out));
     if (cbm_store_search(store, &params, &search_out) != CBM_STORE_OK)
-        return calloc(CBM_ALLOC_ONE, sizeof(cbm_layout_result_t));
+        return CBM_CALLOC(CBM_ALLOC_ONE, sizeof(cbm_layout_result_t));
 
     int n = search_out.count, total_count = search_out.total;
     if (n == 0) {
         cbm_store_search_free(&search_out);
-        cbm_layout_result_t *r = calloc(CBM_ALLOC_ONE, sizeof(*r));
+        cbm_layout_result_t *r = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*r));
         if (r)
             r->total_nodes = total_count;
         return r;
     }
 
     /* 2. Build sorted node-ID → index map for O(log n) edge filtering */
-    node_id_entry_t *id_map = malloc((size_t)n * sizeof(node_id_entry_t));
+    node_id_entry_t *id_map = CBM_MALLOC((size_t)n * sizeof(node_id_entry_t));
     if (!id_map) {
         cbm_store_search_free(&search_out);
-        cbm_layout_result_t *r = calloc(CBM_ALLOC_ONE, sizeof(*r));
+        cbm_layout_result_t *r = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*r));
         if (r) {
             r->total_nodes = total_count;
         }
@@ -432,12 +433,12 @@ cbm_layout_result_t *cbm_layout_compute(cbm_store_t *store, const char *project,
     qsort(id_map, (size_t)n, sizeof(node_id_entry_t), cmp_node_id_entry);
 
     /* 3. Query edges — filter during fetch via binary search (O(e log n)) */
-    int *deg = calloc((size_t)n, sizeof(int));
+    int *deg = CBM_CALLOC((size_t)n, sizeof(int));
     int mapped = 0;
     int edge_cap = CBM_SZ_256;
-    cbm_edge_t *all_edges = malloc((size_t)edge_cap * sizeof(cbm_edge_t));
-    int *es = malloc((size_t)edge_cap * sizeof(int));
-    int *ed = malloc((size_t)edge_cap * sizeof(int));
+    cbm_edge_t *all_edges = CBM_MALLOC((size_t)edge_cap * sizeof(cbm_edge_t));
+    int *es = CBM_MALLOC((size_t)edge_cap * sizeof(int));
+    int *ed = CBM_MALLOC((size_t)edge_cap * sizeof(int));
     cbm_schema_info_t schema;
     memset(&schema, 0, sizeof(schema));
     if (deg && all_edges && es && ed &&
@@ -453,9 +454,9 @@ cbm_layout_result_t *cbm_layout_compute(cbm_store_t *store, const char *project,
                     if (si >= 0 && di >= 0) {
                         if (mapped >= edge_cap) {
                             int nc = edge_cap * PAIR_LEN;
-                            cbm_edge_t *te2 = realloc(all_edges, (size_t)nc * sizeof(cbm_edge_t));
-                            int *ts = realloc(es, (size_t)nc * sizeof(int));
-                            int *td = realloc(ed, (size_t)nc * sizeof(int));
+                            cbm_edge_t *te2 = CBM_REALLOC(all_edges, (size_t)nc * sizeof(cbm_edge_t));
+                            int *ts = CBM_REALLOC(es, (size_t)nc * sizeof(int));
+                            int *td = CBM_REALLOC(ed, (size_t)nc * sizeof(int));
                             if (!te2 || !ts || !td) {
                                 if (te2)
                                     all_edges = te2;
@@ -479,45 +480,45 @@ cbm_layout_result_t *cbm_layout_compute(cbm_store_t *store, const char *project,
                         deg[di]++;
                         mapped++;
                     } else {
-                        free((void *)te[e].project);
-                        free((void *)te[e].type);
-                        free((void *)te[e].properties_json);
+                        CBM_FREE((void *)te[e].project);
+                        CBM_FREE((void *)te[e].type);
+                        CBM_FREE((void *)te[e].properties_json);
                     }
                 }
-                free(te);
+                CBM_FREE(te);
             }
         }
     edges_done:
         cbm_store_schema_free(&schema);
     }
-    free(id_map);
+    CBM_FREE(id_map);
 
     /* 4. Call depth for z-axis */
-    int *cdepth = calloc((size_t)n, sizeof(int));
-    const char **lbls = malloc((size_t)n * sizeof(char *));
+    int *cdepth = CBM_CALLOC((size_t)n, sizeof(int));
+    const char **lbls = CBM_MALLOC((size_t)n * sizeof(char *));
     if (lbls) {
         for (int i = 0; i < n; i++)
             lbls[i] = search_out.results[i].node.label;
         if (cdepth)
             compute_call_depth(n, es, ed, mapped, lbls, cdepth);
-        free(lbls);
+        CBM_FREE(lbls);
     }
 
     /* 5. Seed positions: ring by directory cluster key + z from call depth */
-    body_t *bodies = calloc((size_t)n, sizeof(body_t));
-    cbm_layout_result_t *result = calloc(CBM_ALLOC_ONE, sizeof(*result));
+    body_t *bodies = CBM_CALLOC((size_t)n, sizeof(body_t));
+    cbm_layout_result_t *result = CBM_CALLOC(CBM_ALLOC_ONE, sizeof(*result));
     if (!result || !bodies) {
-        free(bodies);
-        free(deg);
-        free(es);
-        free(ed);
-        free(cdepth);
+        CBM_FREE(bodies);
+        CBM_FREE(deg);
+        CBM_FREE(es);
+        CBM_FREE(ed);
+        CBM_FREE(cdepth);
         cbm_layout_free(result);
         free_edge_array(all_edges, mapped);
         cbm_store_search_free(&search_out);
         return NULL;
     }
-    result->nodes = calloc((size_t)n, sizeof(cbm_layout_node_t));
+    result->nodes = CBM_CALLOC((size_t)n, sizeof(cbm_layout_node_t));
     result->node_count = n;
     result->total_nodes = total_count;
 
@@ -559,10 +560,10 @@ cbm_layout_result_t *cbm_layout_compute(cbm_store_t *store, const char *project,
         bodies[i].mass = (float)(deg[i] + 1);
 
         result->nodes[i].id = sn->id;
-        result->nodes[i].label = sn->label ? strdup(sn->label) : NULL;
-        result->nodes[i].name = sn->name ? strdup(sn->name) : NULL;
-        result->nodes[i].qualified_name = sn->qualified_name ? strdup(sn->qualified_name) : NULL;
-        result->nodes[i].file_path = sn->file_path ? strdup(sn->file_path) : NULL;
+        result->nodes[i].label = sn->label ? CBM_STRDUP(sn->label) : NULL;
+        result->nodes[i].name = sn->name ? CBM_STRDUP(sn->name) : NULL;
+        result->nodes[i].qualified_name = sn->qualified_name ? CBM_STRDUP(sn->qualified_name) : NULL;
+        result->nodes[i].file_path = sn->file_path ? CBM_STRDUP(sn->file_path) : NULL;
         result->nodes[i].color = stellar_color(deg[i]);
         /* Size: base from label + boost from degree (hubs are bigger stars) */
         float base_size = size_for_label(sn->label);
@@ -582,20 +583,20 @@ cbm_layout_result_t *cbm_layout_compute(cbm_store_t *store, const char *project,
 
     /* 8. Output edges */
     if (mapped > 0) {
-        result->edges = calloc((size_t)mapped, sizeof(cbm_layout_edge_t));
+        result->edges = CBM_CALLOC((size_t)mapped, sizeof(cbm_layout_edge_t));
         result->edge_count = mapped;
         for (int e = 0; e < mapped && result->edges; e++) {
             result->edges[e].source = search_out.results[es[e]].node.id;
             result->edges[e].target = search_out.results[ed[e]].node.id;
-            result->edges[e].type = all_edges[e].type ? strdup(all_edges[e].type) : NULL;
+            result->edges[e].type = all_edges[e].type ? CBM_STRDUP(all_edges[e].type) : NULL;
         }
     }
 
-    free(bodies);
-    free(deg);
-    free(es);
-    free(ed);
-    free(cdepth);
+    CBM_FREE(bodies);
+    CBM_FREE(deg);
+    CBM_FREE(es);
+    CBM_FREE(ed);
+    CBM_FREE(cdepth);
     free_edge_array(all_edges, mapped);
     cbm_store_search_free(&search_out);
     return result;
@@ -605,16 +606,16 @@ void cbm_layout_free(cbm_layout_result_t *r) {
     if (!r)
         return;
     for (int i = 0; i < r->node_count; i++) {
-        free((void *)r->nodes[i].label);
-        free((void *)r->nodes[i].name);
-        free((void *)r->nodes[i].qualified_name);
-        free((void *)r->nodes[i].file_path);
+        CBM_FREE((void *)r->nodes[i].label);
+        CBM_FREE((void *)r->nodes[i].name);
+        CBM_FREE((void *)r->nodes[i].qualified_name);
+        CBM_FREE((void *)r->nodes[i].file_path);
     }
-    free(r->nodes);
+    CBM_FREE(r->nodes);
     for (int i = 0; i < r->edge_count; i++)
-        free((void *)r->edges[i].type);
-    free(r->edges);
-    free(r);
+        CBM_FREE((void *)r->edges[i].type);
+    CBM_FREE(r->edges);
+    CBM_FREE(r);
 }
 
 char *cbm_layout_to_json(const cbm_layout_result_t *r) {

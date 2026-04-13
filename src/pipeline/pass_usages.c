@@ -22,8 +22,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
-/* Read file into heap buffer. Caller must free(). */
+/* Read file into heap buffer. Caller must CBM_FREE(). */
 static char *read_file(const char *path, int *out_len) {
     FILE *f = fopen(path, "rb");
     if (!f) {
@@ -36,7 +37,7 @@ static char *read_file(const char *path, int *out_len) {
         (void)fclose(f);
         return NULL;
     }
-    char *buf = malloc(size + SKIP_ONE);
+    char *buf = CBM_MALLOC(size + SKIP_ONE);
     if (!buf) {
         (void)fclose(f);
         return NULL;
@@ -79,11 +80,11 @@ static bool is_checked_exception(const char *name) {
 static int build_import_map_from_cache(cbm_pipeline_ctx_t *ctx, const CBMFileResult *result,
                                        const char ***out_keys, const char ***out_vals,
                                        int *out_count) {
-    const char **keys = calloc((size_t)result->imports.count, sizeof(const char *));
-    const char **vals = calloc((size_t)result->imports.count, sizeof(const char *));
+    const char **keys = CBM_CALLOC((size_t)result->imports.count, sizeof(const char *));
+    const char **vals = CBM_CALLOC((size_t)result->imports.count, sizeof(const char *));
     if (!keys || !vals) {
-        free((void *)keys);
-        free((void *)vals);
+        CBM_FREE((void *)keys);
+        CBM_FREE((void *)vals);
         return 0;
     }
     int count = 0;
@@ -95,11 +96,11 @@ static int build_import_map_from_cache(cbm_pipeline_ctx_t *ctx, const CBMFileRes
         }
         char *target_qn = cbm_pipeline_fqn_module(ctx->project_name, imp->module_path);
         const cbm_gbuf_node_t *target = cbm_gbuf_find_by_qn(ctx->gbuf, target_qn);
-        free(target_qn);
+        CBM_FREE(target_qn);
         if (!target) {
             continue;
         }
-        keys[count] = strdup(imp->local_name);
+        keys[count] = CBM_STRDUP(imp->local_name);
         vals[count] = target->qualified_name;
         count++;
     }
@@ -116,7 +117,7 @@ static int build_import_map_from_edges(cbm_pipeline_ctx_t *ctx, const char *rel_
                                        int *out_count) {
     char *file_qn = cbm_pipeline_fqn_compute(ctx->project_name, rel_path, "__file__");
     const cbm_gbuf_node_t *file_node = cbm_gbuf_find_by_qn(ctx->gbuf, file_qn);
-    free(file_qn);
+    CBM_FREE(file_qn);
     if (!file_node) {
         return 0;
     }
@@ -129,11 +130,11 @@ static int build_import_map_from_edges(cbm_pipeline_ctx_t *ctx, const char *rel_
         return 0;
     }
 
-    const char **keys = calloc(edge_count, sizeof(const char *));
-    const char **vals = calloc(edge_count, sizeof(const char *));
+    const char **keys = CBM_CALLOC(edge_count, sizeof(const char *));
+    const char **vals = CBM_CALLOC(edge_count, sizeof(const char *));
     if (!keys || !vals) {
-        free((void *)keys);
-        free((void *)vals);
+        CBM_FREE((void *)keys);
+        CBM_FREE((void *)vals);
         return 0;
     }
     int count = 0;
@@ -150,7 +151,7 @@ static int build_import_map_from_edges(cbm_pipeline_ctx_t *ctx, const char *rel_
             start += strlen("\"local_name\":\"");
             const char *end = strchr(start, '"');
             if (end && end > start) {
-                keys[count] = cbm_strndup(start, end - start);
+                keys[count] = CBM_STRNDUP(start, end - start);
                 vals[count] = target->qualified_name;
                 count++;
             }
@@ -180,12 +181,12 @@ static int build_import_map(cbm_pipeline_ctx_t *ctx, const char *rel_path,
 static void free_import_map(const char **keys, const char **vals, int count) {
     if (keys) {
         for (int i = 0; i < count; i++) {
-            free((void *)keys[i]);
+            CBM_FREE((void *)keys[i]);
         }
-        free((void *)keys);
+        CBM_FREE((void *)keys);
     }
     if (vals) {
-        free((void *)vals);
+        CBM_FREE((void *)vals);
     }
 }
 
@@ -199,7 +200,7 @@ static const cbm_gbuf_node_t *find_enclosing_node(cbm_pipeline_ctx_t *ctx, const
     if (!node) {
         char *file_qn = cbm_pipeline_fqn_compute(ctx->project_name, rel_path, "__file__");
         node = cbm_gbuf_find_by_qn(ctx->gbuf, file_qn);
-        free(file_qn);
+        CBM_FREE(file_qn);
     }
     return node;
 }
@@ -338,7 +339,7 @@ int cbm_pipeline_pass_usages(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t *fil
             }
             result = cbm_extract_file(source, source_len, files[i].language, ctx->project_name, rel,
                                       CBM_EXTRACT_BUDGET, NULL, NULL);
-            free(source);
+            CBM_FREE(source);
             if (!result) {
                 errors++;
                 continue;
@@ -366,7 +367,7 @@ int cbm_pipeline_pass_usages(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t *fil
             resolve_throw_edges(ctx, result, rel, module_qn, imp_keys, imp_vals, imp_count);
         rw_resolved += resolve_rw_edges(ctx, result, rel, module_qn, imp_keys, imp_vals, imp_count);
 
-        free(module_qn);
+        CBM_FREE(module_qn);
         free_import_map(imp_keys, imp_vals, imp_count);
         if (result_owned) {
             cbm_free_result(result);

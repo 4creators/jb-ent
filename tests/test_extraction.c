@@ -1712,6 +1712,7 @@ TEST(rust_imports) {
 TEST(c_imports) {
     CBMFileResult *r =
         extract("#include <stdio.h>\n#include <stdlib.h>\n#include \"mylib.h\"\n\nint main() { return 0; }\n",
+#include "foundation/allocator.h"
                 CBM_LANG_C, "t", "main.c");
     ASSERT_NOT_NULL(r);
     ASSERT_FALSE(r->has_error);
@@ -1751,7 +1752,7 @@ TEST(import_stress_go) {
     const int N = 5000;
     /* Each line: import "pkg/NNNNN"\n  = ~20 chars; total ~100KB */
     int buf_size = N * 24 + 64;
-    char *src = malloc((size_t)buf_size);
+    char *src = CBM_MALLOC((size_t)buf_size);
     ASSERT_NOT_NULL(src);
 
     int pos = 0;
@@ -1761,7 +1762,7 @@ TEST(import_stress_go) {
     }
 
     CBMFileResult *r = extract(src, CBM_LANG_GO, "t", "stress.go");
-    free(src);
+    CBM_FREE(src);
     ASSERT_NOT_NULL(r);
     ASSERT_FALSE(r->has_error);
     ASSERT_EQ(r->imports.count, N);

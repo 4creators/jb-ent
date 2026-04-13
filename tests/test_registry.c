@@ -9,6 +9,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "foundation/allocator.h"
 
 /* ── FQN computation ──────────────────────────────────────────────── */
 
@@ -16,7 +17,7 @@ TEST(fqn_simple) {
     char *qn = cbm_pipeline_fqn_compute("myproj", "cmd/server/main.go", "HandleRequest");
     ASSERT_NOT_NULL(qn);
     ASSERT_STR_EQ(qn, "myproj.cmd.server.main.HandleRequest");
-    free(qn);
+    CBM_FREE(qn);
     PASS();
 }
 
@@ -24,7 +25,7 @@ TEST(fqn_no_name) {
     char *qn = cbm_pipeline_fqn_compute("myproj", "pkg/service.go", NULL);
     ASSERT_NOT_NULL(qn);
     ASSERT_STR_EQ(qn, "myproj.pkg.service");
-    free(qn);
+    CBM_FREE(qn);
     PASS();
 }
 
@@ -33,7 +34,7 @@ TEST(fqn_python_init) {
     char *qn = cbm_pipeline_fqn_compute("myproj", "pkg/__init__.py", "Foo");
     ASSERT_NOT_NULL(qn);
     ASSERT_STR_EQ(qn, "myproj.pkg.Foo");
-    free(qn);
+    CBM_FREE(qn);
     PASS();
 }
 
@@ -42,7 +43,7 @@ TEST(fqn_js_index) {
     char *qn = cbm_pipeline_fqn_compute("myproj", "src/index.ts", "App");
     ASSERT_NOT_NULL(qn);
     ASSERT_STR_EQ(qn, "myproj.src.App");
-    free(qn);
+    CBM_FREE(qn);
     PASS();
 }
 
@@ -50,7 +51,7 @@ TEST(fqn_module) {
     char *qn = cbm_pipeline_fqn_module("myproj", "cmd/server/main.go");
     ASSERT_NOT_NULL(qn);
     ASSERT_STR_EQ(qn, "myproj.cmd.server.main");
-    free(qn);
+    CBM_FREE(qn);
     PASS();
 }
 
@@ -58,7 +59,7 @@ TEST(fqn_folder) {
     char *qn = cbm_pipeline_fqn_folder("myproj", "cmd/server");
     ASSERT_NOT_NULL(qn);
     ASSERT_STR_EQ(qn, "myproj.cmd.server");
-    free(qn);
+    CBM_FREE(qn);
     PASS();
 }
 
@@ -66,7 +67,7 @@ TEST(fqn_root_file) {
     char *qn = cbm_pipeline_fqn_compute("proj", "main.go", "main");
     ASSERT_NOT_NULL(qn);
     ASSERT_STR_EQ(qn, "proj.main.main");
-    free(qn);
+    CBM_FREE(qn);
     PASS();
 }
 
@@ -87,8 +88,8 @@ TEST(fqn_init_module_distinct_from_folder) {
     ASSERT_NOT_NULL(strstr(mod_qn, "__init__"));
     /* Folder should NOT contain __init__ */
     ASSERT_EQ(strstr(folder_qn, "__init__"), NULL);
-    free(mod_qn);
-    free(folder_qn);
+    CBM_FREE(mod_qn);
+    CBM_FREE(folder_qn);
     PASS();
 }
 
@@ -100,8 +101,8 @@ TEST(fqn_init_nested_module_distinct) {
     ASSERT_NOT_NULL(mod_qn);
     ASSERT_NOT_NULL(folder_qn);
     ASSERT_STR_NEQ(mod_qn, folder_qn);
-    free(mod_qn);
-    free(folder_qn);
+    CBM_FREE(mod_qn);
+    CBM_FREE(folder_qn);
     PASS();
 }
 
@@ -112,8 +113,8 @@ TEST(fqn_index_ts_module_distinct_from_folder) {
     ASSERT_NOT_NULL(mod_qn);
     ASSERT_NOT_NULL(folder_qn);
     ASSERT_STR_NEQ(mod_qn, folder_qn);
-    free(mod_qn);
-    free(folder_qn);
+    CBM_FREE(mod_qn);
+    CBM_FREE(folder_qn);
     PASS();
 }
 
@@ -124,7 +125,7 @@ TEST(fqn_init_symbols_get_clean_package_qn) {
     ASSERT_NOT_NULL(sym_qn);
     ASSERT_STR_EQ(sym_qn, "proj.pkg.Foo");
     ASSERT_EQ(strstr(sym_qn, "__init__"), NULL);
-    free(sym_qn);
+    CBM_FREE(sym_qn);
     PASS();
 }
 
@@ -133,7 +134,7 @@ TEST(fqn_index_symbols_get_clean_qn) {
     char *sym_qn = cbm_pipeline_fqn_compute("proj", "src/index.ts", "App");
     ASSERT_NOT_NULL(sym_qn);
     ASSERT_STR_EQ(sym_qn, "proj.src.App");
-    free(sym_qn);
+    CBM_FREE(sym_qn);
     PASS();
 }
 
@@ -144,8 +145,8 @@ TEST(fqn_init_file_node_distinct) {
     ASSERT_NOT_NULL(file_qn);
     ASSERT_NOT_NULL(folder_qn);
     ASSERT_STR_NEQ(file_qn, folder_qn);
-    free(file_qn);
-    free(folder_qn);
+    CBM_FREE(file_qn);
+    CBM_FREE(folder_qn);
     PASS();
 }
 
@@ -154,7 +155,7 @@ TEST(fqn_regular_module_unchanged) {
     char *qn = cbm_pipeline_fqn_module("proj", "pkg/utils.py");
     ASSERT_NOT_NULL(qn);
     ASSERT_STR_EQ(qn, "proj.pkg.utils");
-    free(qn);
+    CBM_FREE(qn);
     PASS();
 }
 
@@ -162,7 +163,7 @@ TEST(project_name_from_path) {
     char *name = cbm_project_name_from_path("/Users/dev/project");
     ASSERT_NOT_NULL(name);
     ASSERT_STR_EQ(name, "Users-dev-project");
-    free(name);
+    CBM_FREE(name);
     PASS();
 }
 
@@ -170,7 +171,7 @@ TEST(project_name_from_root) {
     char *name = cbm_project_name_from_path("/");
     ASSERT_NOT_NULL(name);
     ASSERT_STR_EQ(name, "root");
-    free(name);
+    CBM_FREE(name);
     PASS();
 }
 
