@@ -372,7 +372,7 @@ static void handle_process_kill(struct mg_connection *c, struct mg_http_message 
 
 /* ── Directory browser ────────────────────────────────────────── */
 
-#include <dirent.h>
+#include "foundation/compat_fs.h"
 
 /* GET /api/browse?path=/some/dir — list subdirectories for file picker */
 static void handle_browse(struct mg_connection *c, struct mg_http_message *hm) {
@@ -391,7 +391,7 @@ static void handle_browse(struct mg_connection *c, struct mg_http_message *hm) {
         return;
     }
 
-    DIR *dir = opendir(path);
+    cbm_dir_t *dir = cbm_opendir(path);
     if (!dir) {
         mg_http_reply(c, 403, g_cors_json, "{\"error\":\"cannot open directory\"}");
         return;
@@ -402,22 +402,22 @@ static void handle_browse(struct mg_connection *c, struct mg_http_message *hm) {
     int pos = 0;
     pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "{\"path\":\"%s\",\"dirs\":[", path);
 
-    struct dirent *ent;
+    cbm_dirent_t *ent;
     int count = 0;
-    while ((ent = readdir(dir)) != NULL) {
+    while ((ent = cbm_readdir(dir)) != NULL) {
         /* Skip hidden dirs and . / .. */
-        if (ent->d_name[0] == '.')
+        if (ent->name[0] == '.')
             continue;
 
         /* Check if it's actually a directory */
         char full[2048];
-        snprintf(full, sizeof(full), "%s/%s", path, ent->d_name);
+        snprintf(full, sizeof(full), "%s/%s", path, ent->name);
         if (!cbm_is_dir(full))
             continue;
 
         if (count > 0)
             buf[pos++] = ',';
-        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "\"%s\"", ent->d_name);
+        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "\"%s\"", ent->name);
         if (pos >= (int)sizeof(buf)) {
             pos = (int)sizeof(buf) - 1;
         }
@@ -426,7 +426,7 @@ static void handle_browse(struct mg_connection *c, struct mg_http_message *hm) {
         if (count >= 200)
             break; /* safety limit */
     }
-    closedir(dir);
+    cbm_closedir(dir);
 
     /* Parent path */
     char parent[1024];

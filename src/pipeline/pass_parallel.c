@@ -375,12 +375,21 @@ static int compare_by_size_desc(const void *a, const void *b) {
 
 #define CBM_CACHE_LINE CBM_SZ_128
 
+#if defined(_MSC_VER)
+typedef __declspec(align(128)) struct {
+    cbm_gbuf_t *local_gbuf;
+    int nodes_created;
+    int errors;
+    char _pad[128 - sizeof(cbm_gbuf_t *) - (PP_ESC_SPACE * sizeof(int))];
+} extract_worker_state_t;
+#else
 typedef struct __attribute__((aligned(CBM_CACHE_LINE))) {
     cbm_gbuf_t *local_gbuf;
     int nodes_created;
     int errors;
     char _pad[CBM_CACHE_LINE - sizeof(cbm_gbuf_t *) - (PP_ESC_SPACE * sizeof(int))];
 } extract_worker_state_t;
+#endif
 
 typedef struct {
     const cbm_file_info_t *files;
@@ -787,6 +796,16 @@ int cbm_build_registry_from_cache(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t
 
 /* ── Phase 4: Parallel Resolution ────────────────────────────────── */
 
+#if defined(_MSC_VER)
+typedef __declspec(align(128)) struct {
+    cbm_gbuf_t *local_edge_buf;
+    int calls_resolved;
+    int usages_resolved;
+    int semantic_resolved;
+    int errors;
+    char _pad[128 - sizeof(cbm_gbuf_t *) - (PP_RING * sizeof(int))];
+} resolve_worker_state_t;
+#else
 typedef struct __attribute__((aligned(CBM_CACHE_LINE))) {
     cbm_gbuf_t *local_edge_buf;
     int calls_resolved;
@@ -795,6 +814,7 @@ typedef struct __attribute__((aligned(CBM_CACHE_LINE))) {
     int errors;
     char _pad[CBM_CACHE_LINE - sizeof(cbm_gbuf_t *) - (PP_RING * sizeof(int))];
 } resolve_worker_state_t;
+#endif
 
 typedef struct {
     const cbm_file_info_t *files;

@@ -11,6 +11,7 @@
  * Indentation determines nesting depth. Uses a stack of parent nodes.
  */
 #include "foundation/constants.h"
+#include "foundation/compat.h"
 
 enum { YAML_INIT_CAP = 8, YAML_LIST_PREFIX = 2, YAML_ROOT_INDENT = -1 };
 #include "foundation/yaml.h"

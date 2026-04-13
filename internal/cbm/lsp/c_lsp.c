@@ -4215,7 +4215,9 @@ static void c_process_class(CLSPContext* ctx, TSNode class_node) {
 // Process file: top-level walk
 // ============================================================================
 
+#if defined(__GNUC__) || defined(__clang__)
 __attribute__((no_sanitize("address")))
+#endif
 void c_lsp_process_file(CLSPContext* ctx, TSNode root) {
     if (ts_node_is_null(root)) return;
 

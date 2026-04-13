@@ -9,6 +9,7 @@
  *   5. Language detection for accepted files
  */
 #include "discover/discover.h"
+#include "foundation/compat.h"
 #include "cbm.h" // CBMLanguage, CBM_LANG_COUNT, CBM_LANG_JSON
 
 #include "foundation/constants.h"

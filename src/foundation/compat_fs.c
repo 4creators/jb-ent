@@ -21,6 +21,7 @@
 #include <windows.h>
 #include <direct.h> /* _mkdir */
 #include <io.h>     /* _unlink */
+#include <process.h> /* _spawnvp, _P_WAIT */
 
 struct cbm_dir {
     HANDLE find_handle;

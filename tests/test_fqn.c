@@ -457,6 +457,20 @@ TEST(project_name_mixed_separators) {
     PASS();
 }
 
+TEST(project_name_windows_mapped_drive) {
+    /* Positive test: standard mapped drive path on Windows */
+    ASSERT_FQN(cbm_project_name_from_path("W:\\home\\jacek\\repo"),
+               "W-home-jacek-repo");
+    PASS();
+}
+
+TEST(project_name_windows_drive_edge_case) {
+    /* Negative test: malformed drive letter with extra slashes and leading dashes */
+    ASSERT_FQN(cbm_project_name_from_path("---Z:\\\\foo//bar:baz"),
+               "Z-foo-bar-baz");
+    PASS();
+}
+
 TEST(project_name_already_dashed) {
     /* Dashes are preserved, not collapsed unless from separator conversion */
     ASSERT_FQN(cbm_project_name_from_path("/my-great-project"),
@@ -584,6 +598,8 @@ SUITE(fqn) {
     RUN_TEST(project_name_all_slashes);
     RUN_TEST(project_name_single_segment);
     RUN_TEST(project_name_mixed_separators);
+    RUN_TEST(project_name_windows_mapped_drive);
+    RUN_TEST(project_name_windows_drive_edge_case);
     RUN_TEST(project_name_already_dashed);
     RUN_TEST(project_name_deep_path);
     RUN_TEST(project_name_colon_only);

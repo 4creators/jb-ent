@@ -15,6 +15,8 @@
 #ifndef CBM_PIPELINE_H
 #define CBM_PIPELINE_H
 
+/* #define CBM_HASH_PROJECT_NAME 1 */
+
 #include <stdbool.h>
 #include <stdint.h>
 

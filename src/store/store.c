@@ -71,7 +71,11 @@ enum {
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 /* ── SQLite bind helpers ───────────────────────────────────────── */
 

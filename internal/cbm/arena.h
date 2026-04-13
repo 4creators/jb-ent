@@ -33,7 +33,11 @@ char *cbm_arena_strdup(CBMArena *a, const char *s);
 char *cbm_arena_strndup(CBMArena *a, const char *s, size_t len);
 
 // sprintf into arena memory. Returns arena-owned string.
+#if defined(__GNUC__) || defined(__clang__)
 char *cbm_arena_sprintf(CBMArena *a, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+#else
+char *cbm_arena_sprintf(CBMArena *a, const char *fmt, ...);
+#endif
 
 // Free all blocks. Arena is invalid after this call.
 void cbm_arena_destroy(CBMArena *a);

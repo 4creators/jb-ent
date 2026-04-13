@@ -6,6 +6,7 @@
  */
 #include "pipeline/pipeline.h"
 #include "pipeline/pipeline_internal.h"
+#include "foundation/compat.h"
 
 #include <ctype.h>
 #include <string.h>

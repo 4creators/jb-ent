@@ -6,6 +6,7 @@
  * RETURN with COUNT/ORDER BY/LIMIT/DISTINCT.
  */
 #include "cypher/cypher.h"
+#include "foundation/compat.h"
 #include "store/store.h"
 #include "foundation/platform.h"
 

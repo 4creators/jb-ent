@@ -6,6 +6,7 @@
  * and Terraform files.
  */
 #include "foundation/constants.h"
+#include "foundation/compat.h"
 
 enum {
     IS_ENV_EXT = 4, /* strlen(".env") */

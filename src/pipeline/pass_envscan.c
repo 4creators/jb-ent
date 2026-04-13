@@ -8,6 +8,7 @@
  * Port of internal/pipeline/envscan.go:ScanProjectEnvURLs().
  */
 #include "foundation/constants.h"
+#include "foundation/compat.h"
 
 enum {
     ENV_REGEX_MAX = 5,

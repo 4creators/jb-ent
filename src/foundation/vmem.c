@@ -29,6 +29,8 @@
 
 /* ── Static state (initialized once) ──────────────────────────── */
 
+#include "foundation/constants.h"
+
 static atomic_size_t g_allocated = 0; /* current total allocated */
 static atomic_size_t g_peak = 0;      /* high-water mark */
 static size_t g_budget = 0;           /* budget in bytes */

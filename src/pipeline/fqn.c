@@ -319,11 +319,65 @@ char *cbm_pipeline_fqn_folder(const char *project, const char *rel_dir) {
     return result;
 }
 
+#ifdef CBM_HASH_PROJECT_NAME
+#define XXH_INLINE_ALL
+#include "../../vendored/xxhash/xxhash.h"
+#endif
+
 char *cbm_project_name_from_path(const char *abs_path) {
     if (!abs_path || !abs_path[0]) {
         return strdup("root");
     }
 
+#ifdef CBM_HASH_PROJECT_NAME
+    char *origin = NULL;
+    char buf[1024];
+
+    /* 1. Try to read .git/config to extract [remote "origin"] URL */
+    snprintf(buf, sizeof(buf), "%s/.git/config", abs_path);
+    FILE *f = fopen(buf, "rb");
+    if (f) {
+        char line[512];
+        bool in_origin = false;
+        while (fgets(line, sizeof(line), f)) {
+            if (strstr(line, "[remote \"origin\"]")) {
+                in_origin = true;
+            } else if (line[0] == '[') {
+                in_origin = false;
+            } else if (in_origin) {
+                char *url_ptr = strstr(line, "url =");
+                if (url_ptr) {
+                    url_ptr += 5;
+                    while (*url_ptr == ' ' || *url_ptr == '\t') {
+                        url_ptr++;
+                    }
+                    char *end = url_ptr;
+                    while (*end && *end != '\r' && *end != '\n') {
+                        end++;
+                    }
+                    *end = '\0';
+                    origin = strdup(url_ptr);
+                    break;
+                }
+            }
+        }
+        fclose(f);
+    }
+
+    /* 2. Fallback: normalize the absolute path */
+    if (!origin) {
+        origin = strdup(abs_path);
+        cbm_normalize_path_sep(origin);
+    }
+
+    /* 3. Hash to 64-bit and format as 16-char hex string */
+    XXH64_hash_t hash = XXH64(origin, strlen(origin), 0);
+    free(origin);
+
+    char hash_str[17];
+    snprintf(hash_str, sizeof(hash_str), "%016llx", (unsigned long long)hash);
+    return strdup(hash_str);
+#else
     /* Work on mutable copy */
     char *path = strdup(abs_path);
     size_t len = strlen(path);
@@ -336,6 +390,16 @@ char *cbm_project_name_from_path(const char *abs_path) {
         if (path[i] == '/' || path[i] == ':') {
             path[i] = '-';
         }
+    }
+
+    /* Strip leading dashes caused by drive letters like W:/ */
+    size_t strip_start = 0;
+    while (path[strip_start] == '-') {
+        strip_start++;
+    }
+    if (strip_start > 0) {
+        memmove(path, path + strip_start, len - strip_start + 1);
+        len -= strip_start;
     }
 
     /* Collapse consecutive dashes */
@@ -370,4 +434,5 @@ char *cbm_project_name_from_path(const char *abs_path) {
     char *result = strdup(start);
     free(path);
     return result;
+#endif
 }

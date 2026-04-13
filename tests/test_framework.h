@@ -30,7 +30,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+#ifdef _WIN32
+#include <io.h>
+#define isatty _isatty
+#define fileno _fileno
+#else
 #include <unistd.h>
+#endif
 
 /* ── Global counters (defined in test_main.c) ──────────────────── */
 
@@ -41,16 +48,16 @@ extern int tf_skip_count;
 /* ── Color helpers ─────────────────────────────────────────────── */
 
 static inline const char *tf_green(void) {
-    return isatty(1) ? "\033[32m" : "";
+    return isatty(fileno(stdout)) ? "\033[32m" : "";
 }
 static inline const char *tf_red(void) {
-    return isatty(1) ? "\033[31m" : "";
+    return isatty(fileno(stdout)) ? "\033[31m" : "";
 }
 static inline const char *tf_dim(void) {
-    return isatty(1) ? "\033[90m" : "";
+    return isatty(fileno(stdout)) ? "\033[90m" : "";
 }
 static inline const char *tf_reset(void) {
-    return isatty(1) ? "\033[0m" : "";
+    return isatty(fileno(stdout)) ? "\033[0m" : "";
 }
 
 /* ── Test definition ───────────────────────────────────────────── */

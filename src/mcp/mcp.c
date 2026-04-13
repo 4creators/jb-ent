@@ -1544,7 +1544,7 @@ static char *handle_delete_project(cbm_mcp_server_t *srv, const char *args) {
     snprintf(wal, sizeof(wal), "%s-wal", path);
     snprintf(shm, sizeof(shm), "%s-shm", path);
 
-    bool exists = (access(path, F_OK) == 0);
+    bool exists = (access(path, 0) == 0);
     const char *status = "not_found";
     if (exists) {
         (void)cbm_unlink(path);

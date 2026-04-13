@@ -10,6 +10,12 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+#ifdef _WIN32
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#endif
 
 /* ── Thread-local storage ─────────────────────────────────────── */
 /* _Thread_local is C11 standard — works on GCC, Clang, and MSVC (2019+).
@@ -42,6 +48,33 @@ char *cbm_strndup(const char *s, size_t n);
 #ifdef _WIN32
 /* Implemented in compat.c */
 ssize_t cbm_getline(char **lineptr, size_t *n, FILE *stream);
+
+/* ── MSVC POSIX Shims ─────────────────────────────────────────── */
+#ifdef _MSC_VER
+#include <string.h>
+#include <intrin.h>
+#include <sys/stat.h>
+
+#define strcasecmp _stricmp
+#define strncasecmp _strnicmp
+#define strtok_r strtok_s
+
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
+
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
+
+static inline int __builtin_ctzll(unsigned long long mask) {
+    unsigned long index;
+    if (_BitScanForward64(&index, mask)) {
+        return (int)index;
+    }
+    return 64;
+}
+#endif /* _MSC_VER */
 #else
 #define cbm_getline getline
 #endif
