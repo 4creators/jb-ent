@@ -266,6 +266,11 @@ static int build_import_map(const cbm_gbuf_t *gbuf, const char *project_name, co
 
     const char **keys = calloc(edge_count, sizeof(const char *));
     const char **vals = calloc(edge_count, sizeof(const char *));
+    if (!keys || !vals) {
+        free((void *)keys);
+        free((void *)vals);
+        return 0;
+    }
     int count = 0;
 
     for (int i = 0; i < edge_count; i++) {
@@ -576,6 +581,9 @@ int cbm_parallel_extract(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t *files, 
     /* Sub-phase: Sort files by descending size for tail-latency reduction */
     CBM_PROF_START(t_sort);
     file_sort_entry_t *sorted = malloc(file_count * sizeof(file_sort_entry_t));
+    if (!sorted) {
+        return CBM_NOT_FOUND;
+    }
     for (int i = 0; i < file_count; i++) {
         sorted[i].idx = i;
         sorted[i].size = files[i].size;

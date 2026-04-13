@@ -81,6 +81,11 @@ static int build_import_map_from_cache(cbm_pipeline_ctx_t *ctx, const CBMFileRes
                                        int *out_count) {
     const char **keys = calloc((size_t)result->imports.count, sizeof(const char *));
     const char **vals = calloc((size_t)result->imports.count, sizeof(const char *));
+    if (!keys || !vals) {
+        free((void *)keys);
+        free((void *)vals);
+        return 0;
+    }
     int count = 0;
 
     for (int i = 0; i < result->imports.count; i++) {
@@ -126,6 +131,11 @@ static int build_import_map_from_edges(cbm_pipeline_ctx_t *ctx, const char *rel_
 
     const char **keys = calloc(edge_count, sizeof(const char *));
     const char **vals = calloc(edge_count, sizeof(const char *));
+    if (!keys || !vals) {
+        free((void *)keys);
+        free((void *)vals);
+        return 0;
+    }
     int count = 0;
 
     for (int i = 0; i < edge_count; i++) {

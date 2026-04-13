@@ -181,6 +181,10 @@ static char **extract_decorators_from_json(const char *json) {
     }
 
     char **out = calloc(cnt + SKIP_ONE, sizeof(char *));
+    if (!out) {
+        yyjson_doc_free(doc);
+        return NULL;
+    }
     size_t idx = 0;
     yyjson_val *item;
     yyjson_arr_iter iter;

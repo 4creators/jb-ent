@@ -271,7 +271,10 @@ static void setup_signal_handlers(void) {
 #endif
 }
 
+#include <mimalloc.h>
+
 int main(int argc, char **argv) {
+    mi_version(); /* Force mimalloc DLL to load before ucrtbase on Windows */
     cbm_profile_init(); /* reads CBM_PROFILE env var, gates all prof macros */
     int subcmd = handle_subcommand(argc, argv);
     if (subcmd >= 0) {

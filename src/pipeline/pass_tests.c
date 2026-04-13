@@ -157,6 +157,9 @@ bool cbm_is_test_func_name(const char *name) {
 static char *build_path(const char *test_path, size_t dir_len, const char *name, size_t name_len,
                         const char *ext, size_t ext_len) {
     char *result = malloc(dir_len + SKIP_ONE + name_len + ext_len + SKIP_ONE);
+    if (!result) {
+        return NULL;
+    }
     if (dir_len > 0) {
         memcpy(result, test_path, dir_len);
         result[dir_len] = '/';

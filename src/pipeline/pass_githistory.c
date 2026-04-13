@@ -362,6 +362,9 @@ int cbm_compute_change_coupling(const cbm_commit_files_t *commits, int commit_co
                 (*val)++;
             } else {
                 int *nv = malloc(sizeof(int));
+                if (!nv) {
+                    continue;
+                }
                 *nv = SKIP_ONE;
                 cbm_ht_set(file_counts, strdup(commits[c].files[i]), nv);
             }
@@ -379,6 +382,9 @@ int cbm_compute_change_coupling(const cbm_commit_files_t *commits, int commit_co
                 size_t la = strlen(a);
                 size_t lb = strlen(b);
                 char *pk = malloc(la + SKIP_ONE + lb + SKIP_ONE);
+                if (!pk) {
+                    continue;
+                }
                 memcpy(pk, a, la);
                 pk[la] = '\x01';
                 memcpy(pk + la + SKIP_ONE, b, lb + SKIP_ONE);
@@ -389,6 +395,10 @@ int cbm_compute_change_coupling(const cbm_commit_files_t *commits, int commit_co
                     free(pk);
                 } else {
                     int *nv = malloc(sizeof(int));
+                    if (!nv) {
+                        free(pk);
+                        continue;
+                    }
                     *nv = SKIP_ONE;
                     cbm_ht_set(pair_counts, pk, nv);
                 }

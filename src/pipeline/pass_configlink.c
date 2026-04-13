@@ -150,14 +150,22 @@ static int strategy_key_symbols(cbm_gbuf_t *gb) {
         return 0;
     }
 
-    config_entry_t config_entries[CBM_SZ_4K];
+    config_entry_t *config_entries = malloc(sizeof(config_entry_t) * CBM_SZ_4K);
+    if (!config_entries) {
+        return 0;
+    }
     int config_count = collect_config_entries(vars, var_count, config_entries, CBM_SZ_4K);
 
     if (config_count == 0) {
+        free(config_entries);
         return 0;
     }
 
-    code_entry_t code_entries[CBM_SZ_8K];
+    code_entry_t *code_entries = malloc(sizeof(code_entry_t) * CBM_SZ_8K);
+    if (!code_entries) {
+        free(config_entries);
+        return 0;
+    }
     int code_count = collect_code_entries(gb, code_entries, CBM_SZ_8K);
 
     int edge_count = 0;
@@ -340,6 +348,7 @@ static int strategy_dep_imports(cbm_gbuf_t *gb) {
         }
     }
 
+    free(deps);
     /* gbuf data is borrowed — no free */
     return edge_count;
 }

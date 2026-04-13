@@ -177,8 +177,11 @@ static void sim_query_worker(int worker_id, void *ctx_ptr) {
     sim_query_ctx_t *sc = ctx_ptr;
     sim_edge_buf_t *my_buf = &sc->worker_bufs[worker_id];
 
-    /* Thread-local candidate buffer (stack-allocated) */
-    const cbm_lsh_entry_t *cands[SIM_CAND_CAP];
+    /* Thread-local candidate buffer (heap-allocated) */
+    const cbm_lsh_entry_t **cands = malloc(sizeof(const cbm_lsh_entry_t *) * SIM_CAND_CAP);
+    if (!cands) {
+        return;
+    }
 
     while (true) {
         int i = atomic_fetch_add_explicit(&sc->next_idx, SKIP_ONE, memory_order_relaxed);

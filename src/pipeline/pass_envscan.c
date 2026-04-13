@@ -401,7 +401,10 @@ int cbm_scan_project_env_urls(const char *root_path, cbm_env_binding_t *out, int
     compile_patterns();
 
     int count = 0;
-    char path_stack[CBM_SZ_256][CBM_SZ_512];
+    char (*path_stack)[CBM_SZ_512] = malloc(sizeof(char[CBM_SZ_256][CBM_SZ_512]));
+    if (!path_stack) {
+        return 0;
+    }
     int stack_top = SKIP_ONE;
     strncpy(path_stack[0], root_path, sizeof(path_stack[0]) - 1);
     path_stack[0][sizeof(path_stack[0]) - SKIP_ONE] = '\0';
@@ -423,5 +426,6 @@ int cbm_scan_project_env_urls(const char *root_path, cbm_env_binding_t *out, int
         }
         cbm_closedir(d);
     }
+    free(path_stack);
     return count;
 }

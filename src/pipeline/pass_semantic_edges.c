@@ -793,6 +793,14 @@ static void score_worker(int worker_id, void *ctx_ptr) {
     score_ctx_t *sc = ctx_ptr;
     deferred_edge_buf_t *my_buf = &sc->worker_bufs[worker_id];
 
+    int *seen = malloc(sizeof(int) * SCORE_SEEN_CAP);
+    int *candidates = malloc(sizeof(int) * SEM_MAX_CANDIDATES);
+    if (!seen || !candidates) {
+        free(seen);
+        free(candidates);
+        return;
+    }
+
     while (true) {
         int i = atomic_fetch_add_explicit(&sc->next_idx, SKIP_ONE, memory_order_relaxed);
         if (i >= sc->func_count) {
@@ -803,16 +811,17 @@ static void score_worker(int worker_id, void *ctx_ptr) {
         if (my_edges >= sc->cfg.max_edges) {
             continue;
         }
-        int seen[SCORE_SEEN_CAP];
         for (int s = 0; s < SCORE_SEEN_CAP; s++) {
             seen[s] = SCORE_SEEN_EMPTY;
         }
-        int candidates[SEM_MAX_CANDIDATES];
         int cand_count = score_collect_candidates(sc, i, seen, candidates, SEM_MAX_CANDIDATES);
         for (int c = 0; c < cand_count; c++) {
             score_try_emit(sc, i, candidates[c], my_buf);
         }
     }
+    
+    free(seen);
+    free(candidates);
 }
 
 /* ── Parallel Phase 1b: decode minhash/profile + build per-func vectors ── */

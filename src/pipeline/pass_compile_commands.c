@@ -262,6 +262,11 @@ int cbm_parse_compile_commands(const char *json_data, const char *repo_path, cha
 
     char **paths = calloc(arr_len, sizeof(char *));
     cbm_compile_flags_t **flags = calloc(arr_len, sizeof(cbm_compile_flags_t *));
+    if (!paths || !flags) {
+        free(paths);
+        free(flags);
+        return 0;
+    }
     int count = 0;
 
     yyjson_val *entry;

@@ -216,6 +216,7 @@ static void fl_add(file_list_t *fl, const char *abs_path, const char *rel_path, 
         if (!new_files) {
             return;
         }
+        memset(new_files + fl->capacity, 0, (new_cap - fl->capacity) * sizeof(cbm_file_info_t));
         fl->files = new_files;
         fl->capacity = new_cap;
     }

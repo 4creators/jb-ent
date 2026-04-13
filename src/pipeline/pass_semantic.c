@@ -115,6 +115,11 @@ static int build_import_map(cbm_pipeline_ctx_t *ctx, const char *rel_path,
 
     const char **keys = calloc(edge_count, sizeof(const char *));
     const char **vals = calloc(edge_count, sizeof(const char *));
+    if (!keys || !vals) {
+        free((void *)keys);
+        free((void *)vals);
+        return 0;
+    }
     int count = 0;
 
     for (int i = 0; i < edge_count; i++) {

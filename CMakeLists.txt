@@ -101,11 +101,11 @@ add_executable(codebase-memory-mcp
 
 # Link vcpkg libraries
 target_link_libraries(codebase-memory-mcp PRIVATE
+    mimalloc
     unofficial::sqlite3::sqlite3
     xxHash::xxhash
     lz4::lz4
     libgit2::libgit2package
-    mimalloc
 )
 
 # Link Windows system libraries
