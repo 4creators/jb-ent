@@ -11,10 +11,11 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-/* Initialize memory budget = ram_fraction * total_physical_ram.
+/* Initialize memory budget. If explicit_budget_mb > 0, it is used directly.
+ * Otherwise, budget = ram_fraction * total_physical_ram.
  * Thread-safe: only the first call takes effect.
  * Configures mimalloc options for reduced upfront memory. */
-void cbm_mem_init(double ram_fraction);
+void cbm_mem_init(size_t explicit_budget_mb, double ram_fraction);
 
 /* Current RSS in bytes via mi_process_info().
  * Falls back to OS-specific queries when MI_OVERRIDE=0 (ASan builds). */

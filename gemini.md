@@ -40,3 +40,20 @@ We need to modify \cbm_project_name_from_path\ (or the upstream pipeline logic) 
 3. Write comprehensive C unit tests in the \	ests/\ directory to prove that WSL, Windows, and Linux paths resolve to the exact same Project ID when the unification logic is triggered.
 4. Compile the server via \Makefile.cbm\ and restart the Gemini CLI to apply the fix.
 
+---
+
+## Mandatory Programming Workflow
+**CRITICAL DIRECTIVE FOR ALL PROGRAMMING WORK**: You must strictly follow this procedure for ANY code changes:
+
+1. **Use appropriate skills and subagents** before proceeding with any implementation.
+2. **Always present the proposed solution** to the user in the exact following way:
+   - **1. What's the goal of particular changes**
+   - **2. How it is achieved in proposed code changes**
+   - **3. What alternative solution to goal stated in 1**
+   - **4. Why proposed solution is the best possible**
+   - **5. Present all proposed code changes for review by user**
+3. **Wait for user acceptance.** Proceed with their application to the codebase ONLY once accepted by the user at each stage.
+4. **Use Subagent-Driven execution** with user reviews at each stage.
+5. **No commit without tests.** Always write unit/integration tests for your changes, and ALWAYS run a stress test before proposing a final git commit.
+6. **Final and very important instruction**: Use relevant skills in working on problems.
+

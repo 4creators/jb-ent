@@ -51,6 +51,28 @@ enum {
 #define CBM_VERSION "dev"
 #endif
 
+static size_t get_budget_mb(void) {
+    const char *env_mb = getenv("CBM_BUDGET_MB");
+    if (env_mb) {
+        while (*env_mb == '"' || *env_mb == '\'') env_mb++;
+        size_t mb = (size_t)strtoull(env_mb, NULL, 10);
+        if (mb > 0) return mb;
+    }
+    return 0; /* 0 means use RAM fraction fallback */
+}
+
+static double get_ram_fraction(void) {
+    const char *env_frac = getenv("CBM_RAM_FRACTION");
+    if (env_frac) {
+        while (*env_frac == '"' || *env_frac == '\'') env_frac++;
+        double f = atof(env_frac);
+        if (f > 0.0 && f <= 2.0) {
+            return f;
+        }
+    }
+    return MAIN_RAM_FRACTION;
+}
+
 /* ── Globals for signal handling ────────────────────────────────── */
 
 static cbm_watcher_t *g_watcher = NULL;
@@ -218,7 +240,7 @@ static int handle_subcommand(int argc, char **argv) {
             return 0;
         }
         if (strcmp(argv[i], "cli") == 0) {
-            cbm_mem_init(MAIN_RAM_FRACTION);
+            cbm_mem_init(get_budget_mb(), get_ram_fraction());
             return run_cli(argc - i - SKIP_ONE, argv + i + SKIP_ONE);
         }
         if (strcmp(argv[i], "install") == 0) {
@@ -287,7 +309,7 @@ int main(int argc, char **argv) {
     }
 
     /* Default: MCP server on stdio */
-    cbm_mem_init(MAIN_RAM_FRACTION); /* 50% of RAM — safe now because mimalloc tracks ALL
+    cbm_mem_init(get_budget_mb(), get_ram_fraction()); /* 50% of RAM — safe now because mimalloc tracks ALL
                                       * memory (C + C++ allocations) via global override.
                                       * No more untracked heap blind spots. */
     /* Store binary path for subprocess spawning + hook log sink */

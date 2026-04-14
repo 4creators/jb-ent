@@ -9,15 +9,18 @@
 #include "mem.h"
 #include "platform.h"
 #include "log.h"
+#include "str_util.h"
 
 #include "foundation/constants.h"
 #include "sqlite3.h"
+#include "foundation/str_util.h"
 
 #define MAX_RAM_FRACTION 1.0
 #define DEFAULT_RAM_FRACTION 0.5
 #include <mimalloc.h>
 #include <stdatomic.h>
 #include <stdio.h>
+#include <inttypes.h>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -42,10 +45,10 @@ static atomic_int g_was_over;    /* pressure hysteresis */
 /* ── OS fallback for RSS (ASan builds where MI_OVERRIDE=0) ──── */
 
 static size_t os_rss(void) {
-#ifdef _WIN32
+#if defined(_WIN32)
     PROCESS_MEMORY_COUNTERS pmc;
     if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-        return (size_t)pmc.PagefileUsage;
+        return (size_t)pmc.PagefileUsage; /* Commit charge, not WorkingSetSize, to prevent OS freeze */
     }
     return 0;
 #elif defined(__APPLE__)
@@ -107,7 +110,7 @@ static void check_pressure(size_t rss) {
 
 /* ── Public API ────────────────────────────────────────────────── */
 
-void cbm_mem_init(double ram_fraction) {
+void cbm_mem_init(size_t explicit_budget_mb, double ram_fraction) {
     int expected = 0;
     if (!atomic_compare_exchange_strong(&g_initialized, &expected, 1)) {
         return;
@@ -125,7 +128,11 @@ void cbm_mem_init(double ram_fraction) {
     mi_option_set(mi_option_purge_delay, 0); /* immediate purge, no 1s delay */
 
     cbm_system_info_t info = cbm_system_info();
-    g_budget = (size_t)((double)info.total_ram * ram_fraction);
+    if (explicit_budget_mb > 0) {
+        g_budget = explicit_budget_mb * MB_DIVISOR;
+    } else {
+        g_budget = (size_t)((double)info.total_ram * ram_fraction);
+    }
 
     char budget_mb[CBM_SZ_32];
     char ram_mb[CBM_SZ_32];
@@ -257,8 +264,28 @@ static inline uint32_t ptr_hash(void *ptr) {
 }
 
 static void trigger_oom_abort(const char *op, size_t size, const char *file, int line) {
-    char msg[CBM_SZ_256];
-    int len = snprintf(msg, sizeof(msg), "FATAL: Out of Memory! Failed to %s %zu bytes at %s:%d\n", op, size, file, line);
+    static char msg[CBM_SZ_1K];
+    
+    size_t current_allocated = (size_t)atomic_load(&g_audit_bytes);
+    cbm_system_info_t info = cbm_system_info();
+    
+    const char *env_mb = getenv("CBM_BUDGET_MB");
+    const char *env_frac = getenv("CBM_RAM_FRACTION");
+    
+    int len = snprintf(msg, sizeof(msg), 
+        "FATAL: Out of Memory! Failed to %s %zu bytes at %s:%d\n"
+        "  Total RAM Available : %zu Bytes\n"
+        "  CBM_BUDGET_MB       : %s\n"
+        "  CBM_RAM_FRACTION    : %s\n"
+        "  Allocated Memory    : %zu Bytes\n"
+        "  Active Budget       : %zu Bytes\n", 
+        op, size, file, line,
+        info.total_ram,
+        env_mb ? env_mb : "(unset)",
+        env_frac ? env_frac : "(unset)",
+        current_allocated,
+        g_budget);
+        
 #ifdef _WIN32
     HANDLE hErr = GetStdHandle(STD_ERROR_HANDLE);
     if (hErr && hErr != INVALID_HANDLE_VALUE) {
@@ -335,7 +362,36 @@ static void tracker_remove(void *ptr, const char *file, int line) {
     trigger_tracker_abort("Double free or capacity scanned", ptr, file, line);
 }
 
+static atomic_int g_circuit_warned = 0;
+
+static void check_circuit_breaker(size_t request_size) {
+    if (g_budget > 0) {
+        size_t current = (size_t)atomic_load(&g_audit_bytes);
+        if (current + request_size > g_budget) {
+            int expected = 0;
+            if (atomic_compare_exchange_strong(&g_circuit_warned, &expected, 1)) {
+                char warn_msg[CBM_SZ_256];
+                int len = snprintf(warn_msg, sizeof(warn_msg), "level=warn msg=\"100%% memory budget exceeded (%zu Bytes)! Waiting for gracful autocancellation .... or 120%% abort.\"\n", g_budget);
+#ifdef _WIN32
+                HANDLE hErr = GetStdHandle(STD_ERROR_HANDLE);
+                if (hErr && hErr != INVALID_HANDLE_VALUE) {
+                    DWORD written;
+                    WriteFile(hErr, warn_msg, (DWORD)len, &written, NULL);
+                }
+#else
+                fputs(warn_msg, stderr);
+                fflush(stderr);
+#endif
+            }
+        }
+        if (current + request_size > g_budget + (g_budget / 5)) {
+            trigger_oom_abort("circuit_breaker", request_size, "mem.c", 0);
+        }
+    }
+}
+
 void* cbm_malloc_safe(size_t size, const char *file, int line) {
+    check_circuit_breaker(size);
 #ifdef _MSC_VER
     void *p = mi_malloc(size);
 #else
@@ -348,6 +404,7 @@ void* cbm_malloc_safe(size_t size, const char *file, int line) {
 }
 
 void* cbm_calloc_safe(size_t count, size_t size, const char *file, int line) {
+    check_circuit_breaker(count * size);
 #ifdef _MSC_VER
     void *p = mi_calloc(count, size);
 #else
@@ -362,6 +419,7 @@ void* cbm_calloc_safe(size_t count, size_t size, const char *file, int line) {
 }
 
 void* cbm_realloc_safe(void* ptr, size_t size, const char *file, int line) {
+    check_circuit_breaker(size);
     size_t old_size = ptr ? mi_usable_size(ptr) : 0;
     if (ptr) {
         tracker_remove(ptr, file, line);
@@ -394,6 +452,7 @@ void cbm_free_safe(void* ptr, const char *file, int line) {
 
 char* cbm_strdup_safe(const char* s, const char *file, int line) {
     if (!s) return NULL;
+    check_circuit_breaker(strlen(s) + 1);
 #ifdef _MSC_VER
     char *p = mi_strdup(s);
 #else
@@ -412,6 +471,7 @@ char* cbm_strndup_safe(const char* s, size_t n, const char *file, int line) {
     if (!s) return NULL;
     size_t len = 0;
     while (len < n && s[len]) len++;
+    check_circuit_breaker(len + 1);
 #ifdef _MSC_VER
     char *p = (char *)mi_malloc(len + 1);
 #else

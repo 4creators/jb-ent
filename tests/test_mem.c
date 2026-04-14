@@ -31,7 +31,7 @@
 /* ── mem basic tests ──────────────────────────────────────────── */
 
 TEST(mem_rss_tracking) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
 
     /* Allocate 10 MB */
     size_t alloc_size = 10 * 1024 * 1024;
@@ -49,7 +49,7 @@ TEST(mem_rss_tracking) {
 }
 
 TEST(mem_collect_reclaims) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
 
     /* Allocate 10 MB, touch it, free it */
     size_t alloc_size = 10 * 1024 * 1024;
@@ -73,7 +73,7 @@ TEST(mem_budget_check) {
     /* Init with very small fraction to create an easy-to-exceed budget */
     /* NOTE: cbm_mem_init only takes effect once, so we test with whatever
      * budget was set. Just verify the API works. */
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
 
     size_t budget = cbm_mem_budget();
     /* Budget should be > 0 after init */
@@ -96,7 +96,7 @@ TEST(mem_budget_check) {
 /* ── mem budget edge-case tests ─────────────────────────────── */
 
 TEST(mem_worker_budget_zero_workers) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
     size_t budget = cbm_mem_budget();
     /* 0 workers clamps to 1 → worker_budget == full budget */
     size_t wb = cbm_mem_worker_budget(0);
@@ -105,7 +105,7 @@ TEST(mem_worker_budget_zero_workers) {
 }
 
 TEST(mem_worker_budget_negative_workers) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
     size_t budget = cbm_mem_budget();
     /* Negative workers clamps to 1 → worker_budget == full budget */
     size_t wb = cbm_mem_worker_budget(-5);
@@ -114,7 +114,7 @@ TEST(mem_worker_budget_negative_workers) {
 }
 
 TEST(mem_worker_budget_one_worker) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
     size_t budget = cbm_mem_budget();
     /* 1 worker → equals full budget */
     size_t wb = cbm_mem_worker_budget(1);
@@ -123,7 +123,7 @@ TEST(mem_worker_budget_one_worker) {
 }
 
 TEST(mem_worker_budget_many_workers) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
     /* 1000 workers → should produce non-zero result (budget is huge) */
     size_t wb = cbm_mem_worker_budget(1000);
     ASSERT_GT(wb, 0);
@@ -133,7 +133,7 @@ TEST(mem_worker_budget_many_workers) {
 }
 
 TEST(mem_over_budget_low_rss) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
     /* We're a test process with tiny RSS — should not be over budget */
     bool over = cbm_mem_over_budget();
     ASSERT_FALSE(over);
@@ -143,15 +143,20 @@ TEST(mem_over_budget_low_rss) {
 /* ── RSS tracking tests ───────────────────────────────────────── */
 
 TEST(mem_rss_positive) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
     /* A running process always has nonzero RSS */
     size_t rss = cbm_mem_rss();
     ASSERT_GT(rss, 0);
+    
+    /* Peak RSS must also be > 0 and >= current RSS */
+    size_t peak_rss = cbm_mem_peak_rss();
+    ASSERT_GT(peak_rss, 0);
+    ASSERT_GTE(peak_rss, rss);
     PASS();
 }
 
 TEST(mem_peak_rss_gte_rss) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
     size_t rss = cbm_mem_rss();
     size_t peak = cbm_mem_peak_rss();
     /* Peak must be >= current RSS */
@@ -160,7 +165,7 @@ TEST(mem_peak_rss_gte_rss) {
 }
 
 TEST(mem_rss_increases_after_alloc) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
 
     /* Allocate 10 MB and touch all pages */
     size_t alloc_size = 10 * 1024 * 1024;
@@ -177,14 +182,14 @@ TEST(mem_rss_increases_after_alloc) {
 }
 
 TEST(mem_collect_no_crash) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
     /* collect() must not crash even with nothing to collect */
     cbm_mem_collect();
     PASS();
 }
 
 TEST(mem_collect_rss_still_positive) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
     cbm_mem_collect();
     /* After collect, RSS must still be > 0 (we're alive) */
     size_t rss = cbm_mem_rss();
@@ -195,7 +200,7 @@ TEST(mem_collect_rss_still_positive) {
 /* ── Memory pressure simulation ───────────────────────────────── */
 
 TEST(mem_progressive_alloc_rss_increases) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
 
     size_t chunk_size = 2 * 1024 * 1024; /* 2 MB chunks */
     int nchunks = 5;
@@ -222,7 +227,7 @@ TEST(mem_progressive_alloc_rss_increases) {
 }
 
 TEST(mem_free_and_collect_no_crash) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
 
     /* Allocate, free, collect — verify no crash */
     size_t sz = 4 * 1024 * 1024;
@@ -238,7 +243,7 @@ TEST(mem_free_and_collect_no_crash) {
 }
 
 TEST(mem_multiple_collect_idempotent) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
 
     /* Multiple collect() calls must be idempotent and not crash */
     cbm_mem_collect();
@@ -566,7 +571,7 @@ static void teardown_mem_test_repo(void) {
 }
 
 TEST(parallel_extract_with_slab) {
-    cbm_mem_init(0.5);
+    cbm_mem_init(0, 0.5);
 
     if (setup_mem_test_repo() != 0) {
         SKIP("tmpdir setup failed");
