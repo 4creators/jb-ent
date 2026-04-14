@@ -267,6 +267,14 @@ static char *get_decomp_buf(int needed) {
     return tls_decomp_buf;
 }
 
+void cbm_ac_thread_cleanup(void) {
+    if (tls_decomp_buf) {
+        CBM_FREE(tls_decomp_buf);
+        tls_decomp_buf = NULL;
+        tls_decomp_cap = 0;
+    }
+}
+
 // cbm_ac_scan_lz4_bitmask decompresses LZ4 data into a thread-local buffer
 // and scans it through the AC automaton. Returns bitmask of matched patterns.
 // Zero Go heap allocation — the decompression buffer lives in C.

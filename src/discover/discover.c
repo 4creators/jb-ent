@@ -227,6 +227,11 @@ static void fl_add(file_list_t *fl, const char *abs_path, const char *rel_path, 
     fi->rel_path = CBM_STRDUP(rel_path);
     fi->language = lang;
     fi->size = size;
+    
+    if (fl->count % 1000 == 0) {
+        fprintf(stderr, "  Discovering files (scanning %d files so far)...\r", fl->count);
+        fflush(stderr);
+    }
 }
 
 /* ── Recursive walk ──────────────────────────────────────────────── */

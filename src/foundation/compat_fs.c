@@ -122,7 +122,7 @@ bool cbm_mkdir_p(const char *path, int mode) {
         return true;
     }
     /* Walk path and create each component */
-    char *tmp = _strdup(path);
+    char *tmp = CBM_STRDUP(path);
     if (!tmp) {
         return false;
     }

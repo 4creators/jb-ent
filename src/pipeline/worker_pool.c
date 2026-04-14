@@ -18,10 +18,19 @@ enum { WP_TRUE = 1, WP_MIN = 1, WP_STEP = 1 };
 #include <stdatomic.h>
 #include <stdlib.h>
 #include "foundation/allocator.h"
+#include "cbm.h"
+#include "ac.h"
+#include "foundation/slab_alloc.h"
 
 /* 8 MB stack per worker — matches main thread default.
  * Required for deep AST recursion (tree-sitter + walk_defs). */
 #define CBM_WORKER_STACK_SIZE ((size_t)8 * CBM_SZ_1K * CBM_SZ_1K)
+
+static void cbm_thread_cleanup(void) {
+    cbm_destroy_thread_parser();
+    cbm_ac_thread_cleanup();
+    cbm_slab_destroy_thread();
+}
 
 /* ── Serial fallback ─────────────────────────────────────────────── */
 
@@ -29,6 +38,7 @@ static void run_serial(int count, cbm_parallel_fn fn, void *ctx) {
     for (int i = 0; i < count; i++) {
         fn(i, ctx);
     }
+    cbm_thread_cleanup();
 }
 
 /* ── pthreads backend ────────────────────────────────────────────── */
@@ -49,6 +59,7 @@ static void *pthread_worker(void *arg) {
         }
         wa->fn(idx, wa->ctx);
     }
+    cbm_thread_cleanup();
     return NULL;
 }
 
@@ -84,6 +95,7 @@ static void run_pthreads(int count, cbm_parallel_fn fn, void *ctx, int nworkers)
         }
         fn(idx, ctx);
     }
+    cbm_thread_cleanup();
 
     for (int i = 0; i < nworkers; i++) {
         cbm_thread_join(&threads[i]);

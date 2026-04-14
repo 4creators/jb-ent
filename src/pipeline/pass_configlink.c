@@ -196,6 +196,9 @@ static int strategy_key_symbols(cbm_gbuf_t *gb) {
         }
     }
 
+    CBM_FREE(config_entries);
+    CBM_FREE(code_entries);
+
     return edge_count;
 }
 

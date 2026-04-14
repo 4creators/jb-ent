@@ -47,7 +47,7 @@ int cbm_thread_create(cbm_thread_t *t, size_t stack_size, void *(*fn)(void *), v
     }
     a->fn = fn;
     a->arg = arg;
-    t->handle = CreateThread(NULL, stack_size, win_thread_wrapper, a, 0, NULL);
+    t->handle = CreateThread(NULL, stack_size, win_thread_wrapper, a, STACK_SIZE_PARAM_IS_A_RESERVATION, NULL);
     if (!t->handle) {
         CBM_FREE(a);
         return CBM_NOT_FOUND;

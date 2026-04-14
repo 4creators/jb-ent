@@ -12,6 +12,7 @@
 #include "graph_buffer/graph_buffer.h"
 #include "discover/discover.h"
 #include "foundation/hash_table.h"
+#include "foundation/mem.h"
 #include "cbm.h"
 #include <stdatomic.h>
 
@@ -50,7 +51,12 @@ typedef struct {
 
 /* Check cancellation. Returns non-zero if cancelled. */
 static inline int cbm_pipeline_check_cancel(const cbm_pipeline_ctx_t *ctx) {
-    return atomic_load(ctx->cancelled) ? CBM_NOT_FOUND : 0;
+    if (cbm_mem_over_budget()) {
+        if (ctx->cancelled) {
+            atomic_store(ctx->cancelled, 1);
+        }
+    }
+    return ctx->cancelled && atomic_load(ctx->cancelled) ? CBM_NOT_FOUND : 0;
 }
 
 /* ── Testable helpers ────────────────────────────────────────────── */

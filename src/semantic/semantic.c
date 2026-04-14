@@ -395,6 +395,20 @@ static _Atomic int g_pretrained_ready = 0;
 static cbm_mutex_t g_pretrained_mtx;
 static _Atomic int g_pretrained_mtx_init = 0;
 
+static void free_key_and_value(const char *key, void *value, void *ctx) {
+    (void)ctx;
+    CBM_FREE((void *)key);
+    CBM_FREE(value);
+}
+
+void cbm_sem_cleanup_globals(void) {
+    if (g_pretrained_map) {
+        cbm_ht_foreach(g_pretrained_map, free_key_and_value, NULL);
+        cbm_ht_free(g_pretrained_map);
+        g_pretrained_map = NULL;
+    }
+}
+
 /* Thread-safe lazy init of the pretrained token lookup map.
  * Uses double-checked locking: fast path reads an atomic flag. */
 static void ensure_pretrained_map(void) {
@@ -426,6 +440,7 @@ static void ensure_pretrained_map(void) {
                 cbm_ht_set(g_pretrained_map, CBM_STRDUP(tok), CBM_STRDUP(idx_buf));
             }
         }
+        atexit(cbm_sem_cleanup_globals);
         atomic_store_explicit(&g_pretrained_ready, MAP_READY, memory_order_release);
     }
     cbm_mutex_unlock(&g_pretrained_mtx);

@@ -1266,6 +1266,7 @@ static void remap_sort_dedup_vectors(cbm_gbuf_t *gb, const int64_t *temp_to_fina
             gb->dump_vectors[remapped].node_id = new_id;
             remapped++;
         } else {
+            CBM_FREE((void *)gb->dump_vectors[i].vector);
             dropped++;
         }
     }
@@ -1285,6 +1286,7 @@ static void remap_sort_dedup_vectors(cbm_gbuf_t *gb, const int64_t *temp_to_fina
         for (int i = 0; i < gb->dump_vector_count; i++) {
             if (i + GB_DEDUP_LOOKAHEAD < gb->dump_vector_count &&
                 gb->dump_vectors[i].node_id == gb->dump_vectors[i + GB_DEDUP_LOOKAHEAD].node_id) {
+                CBM_FREE((void *)gb->dump_vectors[i].vector);
                 continue;
             }
             gb->dump_vectors[deduped++] = gb->dump_vectors[i];

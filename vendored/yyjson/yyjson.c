@@ -2176,16 +2176,18 @@ static_inline void *mem_align_up(void *mem, usize align) {
  * This is a simple libc memory allocator wrapper.
  *============================================================================*/
 
+#include "foundation/allocator.h"
+
 static void *default_malloc(void *ctx, usize size) {
-    return malloc(size);
+    return CBM_MALLOC(size);
 }
 
 static void *default_realloc(void *ctx, void *ptr, usize old_size, usize size) {
-    return realloc(ptr, size);
+    return CBM_REALLOC(ptr, size);
 }
 
 static void default_free(void *ctx, void *ptr) {
-    free(ptr);
+    CBM_FREE(ptr);
 }
 
 static const yyjson_alc YYJSON_DEFAULT_ALC = {

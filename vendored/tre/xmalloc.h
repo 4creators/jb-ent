@@ -63,11 +63,12 @@ void xmalloc_configure(int fail_after);
 #else /* !MALLOC_DEBUGGING */
 
 #include <stdlib.h>
+#include "foundation/allocator.h"
 
-#define xmalloc(size) malloc(size)
-#define xcalloc(nmemb, size) calloc(nmemb, size)
-#define xfree(ptr) free(ptr)
-#define xrealloc(ptr, new_size) realloc(ptr, new_size)
+#define xmalloc(size) CBM_MALLOC(size)
+#define xcalloc(nmemb, size) CBM_CALLOC(nmemb, size)
+#define xfree(ptr) CBM_FREE(ptr)
+#define xrealloc(ptr, new_size) CBM_REALLOC(ptr, new_size)
 
 #endif /* !MALLOC_DEBUGGING */
 #endif /* !XMALLOC_INTERNAL */

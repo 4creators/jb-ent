@@ -33,6 +33,9 @@ void cbm_ac_free(CBMAutomaton *ac);
 // Single-text scanning (returns bitmask of matched pattern IDs).
 uint64_t cbm_ac_scan_bitmask(const CBMAutomaton *ac, const char *text, int text_len);
 
+// Free thread-local decompression buffers
+void cbm_ac_thread_cleanup(void);
+
 // LZ4-compressed scanning.
 uint64_t cbm_ac_scan_lz4_bitmask(const CBMAutomaton *ac, const char *compressed, int compressed_len,
                                  int original_len);

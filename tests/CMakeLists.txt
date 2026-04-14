@@ -14,4 +14,7 @@ add_executable(run_test_fqn
 target_link_libraries(run_test_fqn PRIVATE xxHash::xxhash mimalloc)
 if(WIN32)
     target_link_libraries(run_test_fqn PRIVATE ws2_32 psapi bcrypt crypt32 winhttp rpcrt4)
+    if(MSVC)
+        set_target_properties(run_test_fqn PROPERTIES LINK_FLAGS "/STACK:8388608")
+    endif()
 endif()

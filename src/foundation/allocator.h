@@ -35,12 +35,22 @@ extern void cbm_mem_print_audit(void);
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _MSC_VER
+#include <mimalloc.h>
+#define CBM_MALLOC(size)      mi_malloc(size)
+#define CBM_CALLOC(c, s)      mi_calloc(c, s)
+#define CBM_REALLOC(p, s)     mi_realloc(p, s)
+#define CBM_FREE(p)           mi_free(p)
+#define CBM_STRDUP(s)         mi_strdup(s)
+#define CBM_STRNDUP(s, n)     mi_strndup(s, n)
+#else
 #define CBM_MALLOC(size)      malloc(size)
 #define CBM_CALLOC(c, s)      calloc(c, s)
 #define CBM_REALLOC(p, s)     realloc(p, s)
 #define CBM_FREE(p)           free(p)
 #define CBM_STRDUP(s)         cbm_strdup(s)
 #define CBM_STRNDUP(s, n)     cbm_strndup(s, n)
+#endif
 
 #define cbm_mem_print_audit() ((void)0)
 

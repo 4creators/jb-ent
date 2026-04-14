@@ -230,6 +230,8 @@ static void sim_query_worker(int worker_id, void *ctx_ptr) {
             atomic_fetch_add_explicit(&sc->edge_counts[i], emitted, memory_order_relaxed);
         }
     }
+
+    CBM_FREE((void *)cands);
 }
 
 /* Merge worker edge buffers into gbuf. Returns total edge count. Frees worker buffers. */

@@ -44,7 +44,7 @@ static size_t os_rss(void) {
 #ifdef _WIN32
     PROCESS_MEMORY_COUNTERS pmc;
     if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-        return (size_t)pmc.WorkingSetSize;
+        return (size_t)pmc.PagefileUsage;
     }
     return 0;
 #elif defined(__APPLE__)
@@ -134,6 +134,9 @@ void cbm_mem_init(double ram_fraction) {
 }
 
 size_t cbm_mem_rss(void) {
+#ifdef _WIN32
+    return os_rss();
+#else
     size_t current_rss = 0;
     size_t peak_rss = 0;
     mi_process_info(NULL, NULL, NULL, &current_rss, &peak_rss, NULL, NULL, NULL);
@@ -142,9 +145,17 @@ size_t cbm_mem_rss(void) {
     }
     /* Fallback for ASan builds (MI_OVERRIDE=0) */
     return os_rss();
+#endif
 }
 
 size_t cbm_mem_peak_rss(void) {
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+        return (size_t)pmc.PeakPagefileUsage;
+    }
+    return 0;
+#else
     size_t peak_rss = 0;
     mi_process_info(NULL, NULL, NULL, NULL, &peak_rss, NULL, NULL, NULL);
     if (peak_rss > 0) {
@@ -152,6 +163,7 @@ size_t cbm_mem_peak_rss(void) {
     }
     /* No OS fallback for peak — return current as best approximation */
     return os_rss();
+#endif
 }
 
 size_t cbm_mem_budget(void) {
@@ -181,36 +193,143 @@ void cbm_mem_collect(void) {
 
 #include "allocator.h"
 
+#ifdef _WIN32
+#include <windows.h>
+static SRWLOCK g_tracker_lock = SRWLOCK_INIT;
+#define TRACKER_LOCK() AcquireSRWLockExclusive(&g_tracker_lock)
+#define TRACKER_UNLOCK() ReleaseSRWLockExclusive(&g_tracker_lock)
+#else
+#include <pthread.h>
+static pthread_mutex_t g_tracker_lock = PTHREAD_MUTEX_INITIALIZER;
+#define TRACKER_LOCK() pthread_mutex_lock(&g_tracker_lock)
+#define TRACKER_UNLOCK() pthread_mutex_unlock(&g_tracker_lock)
+#endif
+
+#define TRACKER_CAPACITY (1 << 24) /* 16 million allocations */
+#define TRACKER_MASK (TRACKER_CAPACITY - 1)
+#define TOMBSTONE ((void*)(~0ULL))
+
+typedef struct {
+    void *ptr;
+    size_t size;
+    const char *file;
+    int line;
+} alloc_record_t;
+
+/* Statically allocated in BSS (zero-initialized) */
+static alloc_record_t g_tracker[TRACKER_CAPACITY];
 static _Atomic int64_t g_audit_bytes = 0;
 
+static inline uint32_t ptr_hash(void *ptr) {
+    uint64_t h = (uint64_t)ptr;
+    h ^= h >> 33;
+    h *= 0xff51afd7ed558ccdULL;
+    h ^= h >> 33;
+    h *= 0xc4ceb9fe1a85ec53ULL;
+    h ^= h >> 33;
+    return (uint32_t)h;
+}
+
 static void trigger_oom_abort(const char *op, size_t size, const char *file, int line) {
-    /* Statically allocated message to guarantee we can print without any more RAM */
     char msg[CBM_SZ_256];
-    snprintf(msg, sizeof(msg), "FATAL: Out of Memory! Failed to %s %zu bytes at %s:%d\n", op, size, file, line);
+    int len = snprintf(msg, sizeof(msg), "FATAL: Out of Memory! Failed to %s %zu bytes at %s:%d\n", op, size, file, line);
+#ifdef _WIN32
+    HANDLE hErr = GetStdHandle(STD_ERROR_HANDLE);
+    if (hErr && hErr != INVALID_HANDLE_VALUE) {
+        DWORD written;
+        WriteFile(hErr, msg, (DWORD)len, &written, NULL);
+    }
+#else
     fputs(msg, stderr);
     fflush(stderr);
+#endif
     exit(EXIT_FAILURE);
 }
 
+static void tracker_add(void *ptr, size_t size, const char *file, int line) {
+    if (!ptr) return;
+    TRACKER_LOCK();
+    uint32_t idx = ptr_hash(ptr) & TRACKER_MASK;
+    for (int i = 0; i < TRACKER_CAPACITY; i++) {
+        void *p = g_tracker[idx].ptr;
+        if (p == NULL || p == TOMBSTONE) {
+            g_tracker[idx].ptr = ptr;
+            g_tracker[idx].size = size;
+            g_tracker[idx].file = file;
+            g_tracker[idx].line = line;
+            TRACKER_UNLOCK();
+            return;
+        }
+        if (p == ptr) {
+            fprintf(stderr, "TRACKER FATAL: Pointer %p already tracked (Allocated at %s:%d)!\n", ptr, file, line);
+            abort();
+        }
+        idx = (idx + 1) & TRACKER_MASK;
+    }
+    fprintf(stderr, "TRACKER FATAL: Capacity exceeded!\n");
+    abort();
+}
+
+static void tracker_remove(void *ptr, const char *file, int line) {
+    if (!ptr) return;
+    TRACKER_LOCK();
+    uint32_t idx = ptr_hash(ptr) & TRACKER_MASK;
+    for (int i = 0; i < TRACKER_CAPACITY; i++) {
+        void *p = g_tracker[idx].ptr;
+        if (p == ptr) {
+            g_tracker[idx].ptr = TOMBSTONE;
+            TRACKER_UNLOCK();
+            return;
+        }
+        if (p == NULL) {
+            fprintf(stderr, "TRACKER FATAL: Double free or untracked pointer %p freed at %s:%d!\n", ptr, file, line);
+            abort();
+        }
+        idx = (idx + 1) & TRACKER_MASK;
+    }
+    fprintf(stderr, "TRACKER FATAL: Double free or untracked pointer %p freed at %s:%d! (Capacity scanned)\n", ptr, file, line);
+    abort();
+}
+
 void* cbm_malloc_safe(size_t size, const char *file, int line) {
+#ifdef _MSC_VER
+    void *p = mi_malloc(size);
+#else
     void *p = malloc(size);
+#endif
     if (!p) trigger_oom_abort("malloc", size, file, line);
+    tracker_add(p, mi_usable_size(p), file, line);
     atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
     return p;
 }
 
 void* cbm_calloc_safe(size_t count, size_t size, const char *file, int line) {
+#ifdef _MSC_VER
+    void *p = mi_calloc(count, size);
+#else
     void *p = calloc(count, size);
+#endif
     if (!p && (count * size) > 0) trigger_oom_abort("calloc", count * size, file, line);
-    if (p) atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
+    if (p) {
+        tracker_add(p, mi_usable_size(p), file, line);
+        atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
+    }
     return p;
 }
 
 void* cbm_realloc_safe(void* ptr, size_t size, const char *file, int line) {
     size_t old_size = ptr ? mi_usable_size(ptr) : 0;
+    if (ptr) {
+        tracker_remove(ptr, file, line);
+    }
+#ifdef _MSC_VER
+    void *p = mi_realloc(ptr, size);
+#else
     void *p = realloc(ptr, size);
+#endif
     if (!p && size > 0) trigger_oom_abort("realloc", size, file, line);
     if (p) {
+        tracker_add(p, mi_usable_size(p), file, line);
         atomic_fetch_sub(&g_audit_bytes, old_size);
         atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
     }
@@ -218,20 +337,29 @@ void* cbm_realloc_safe(void* ptr, size_t size, const char *file, int line) {
 }
 
 void cbm_free_safe(void* ptr, const char *file, int line) {
-    (void)file; (void)line;
     if (ptr) {
+        tracker_remove(ptr, file, line);
         atomic_fetch_sub(&g_audit_bytes, mi_usable_size(ptr));
+#ifdef _MSC_VER
+        mi_free(ptr);
+#else
         free(ptr);
+#endif
     }
 }
 
 char* cbm_strdup_safe(const char* s, const char *file, int line) {
     if (!s) return NULL;
+#ifdef _MSC_VER
+    char *p = mi_strdup(s);
+#else
     char *p = _strdup(s); /* Or standard strdup depending on platform, _strdup on MSVC */
 #ifndef _WIN32
     if (!p) p = strdup(s);
 #endif
+#endif
     if (!p) trigger_oom_abort("strdup", strlen(s) + 1, file, line);
+    tracker_add(p, mi_usable_size(p), file, line);
     atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
     return p;
 }
@@ -240,21 +368,53 @@ char* cbm_strndup_safe(const char* s, size_t n, const char *file, int line) {
     if (!s) return NULL;
     size_t len = 0;
     while (len < n && s[len]) len++;
+#ifdef _MSC_VER
+    char *p = (char *)mi_malloc(len + 1);
+#else
     char *p = malloc(len + 1);
+#endif
     if (!p) trigger_oom_abort("strndup", len + 1, file, line);
     memcpy(p, s, len);
     p[len] = '\0';
+    tracker_add(p, mi_usable_size(p), file, line);
     atomic_fetch_add(&g_audit_bytes, mi_usable_size(p));
     return p;
 }
 
 void cbm_mem_print_audit(void) {
     int64_t leaked = atomic_load(&g_audit_bytes);
-    if (leaked != 0) {
-        fprintf(stderr, "MEMORY AUDIT FAILED: %lld bytes leaked!\n", (long long)leaked);
-    } else {
+    
+    int leak_count = 0;
+    size_t leaked_bytes = 0;
+    for (int i = 0; i < TRACKER_CAPACITY; i++) {
+        void *p = g_tracker[i].ptr;
+        if (p != NULL && p != TOMBSTONE) {
+            fprintf(stderr, "LEAK: %p (%zu bytes) allocated at %s:%d\n", p, g_tracker[i].size, g_tracker[i].file, g_tracker[i].line);
+            leaked_bytes += g_tracker[i].size;
+            leak_count++;
+            if (leak_count > 100) {
+                fprintf(stderr, "... and more leaks omitted.\n");
+                break;
+            }
+        }
+    }
+    
+    if (leak_count == 0 && leaked == 0) {
         fprintf(stderr, "MEMORY AUDIT OK: 0 bytes leaked.\n");
+    } else {
+        fprintf(stderr, "MEMORY AUDIT FAILED: %lld bytes leaked counter, %d allocations leaked in tracker totaling %zu bytes.\n", (long long)leaked, leak_count, leaked_bytes);
     }
 }
 
 #endif /* CBM_HARDEN_MEMORY */
+
+/* ── Mongoose Override ────────────────────────────────────────── */
+#if defined(MG_ENABLE_CUSTOM_CALLOC) && MG_ENABLE_CUSTOM_CALLOC == 1
+#include "allocator.h"
+void *mg_calloc(size_t count, size_t size) {
+    return CBM_CALLOC(count, size);
+}
+void mg_free(void *ptr) {
+    CBM_FREE(ptr);
+}
+#endif
