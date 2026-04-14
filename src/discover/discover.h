@@ -95,6 +95,8 @@ typedef struct {
     char *rel_path;       /* relative to repo root (heap-allocated) */
     CBMLanguage language; /* detected language */
     int64_t size;         /* file size in bytes */
+    const char *rel_dir_path; /* interned directory path relative to repo root */
+    const char *filename;     /* interned or heap-allocated filename */
 } cbm_file_info_t;
 
 typedef struct {
@@ -110,7 +112,13 @@ typedef struct {
 int cbm_discover(const char *repo_path, const cbm_discover_opts_t *opts, cbm_file_info_t **out,
                  int *count);
 
+/* Optimized parallel directory walk using memory contexts for deduplication. */
+int cbm_discover_optimized(const char *repo_path, const cbm_discover_opts_t *opts, cbm_file_info_t **out, int *count);
+
 /* Free an array of file info results. NULL-safe. */
 void cbm_discover_free(cbm_file_info_t *files, int count);
+
+/* Cleanup the global memory context used for optimized discovery deduplication. */
+void cbm_discover_cleanup(void);
 
 #endif /* CBM_DISCOVER_H */

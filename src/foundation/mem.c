@@ -11,6 +11,7 @@
 #include "log.h"
 
 #include "foundation/constants.h"
+#include "sqlite3.h"
 
 #define MAX_RAM_FRACTION 1.0
 #define DEFAULT_RAM_FRACTION 0.5
@@ -205,7 +206,7 @@ static pthread_mutex_t g_tracker_lock = PTHREAD_MUTEX_INITIALIZER;
 #define TRACKER_UNLOCK() pthread_mutex_unlock(&g_tracker_lock)
 #endif
 
-#define TRACKER_CAPACITY (1 << 24) /* 16 million allocations */
+#define TRACKER_CAPACITY (1 << 26) /* 67 million allocations (2GB table) */
 #define TRACKER_MASK (TRACKER_CAPACITY - 1)
 #define TOMBSTONE ((void*)(~0ULL))
 
@@ -216,9 +217,34 @@ typedef struct {
     int line;
 } alloc_record_t;
 
-/* Statically allocated in BSS (zero-initialized) */
-static alloc_record_t g_tracker[TRACKER_CAPACITY];
+static alloc_record_t *g_tracker = NULL;
+static atomic_int g_tracker_init_flag = 0;
 static _Atomic int64_t g_audit_bytes = 0;
+
+static void init_tracker_memory(void) {
+    int expected = 0;
+    if (atomic_compare_exchange_strong(&g_tracker_init_flag, &expected, 1)) {
+        size_t bytes = (size_t)TRACKER_CAPACITY * sizeof(alloc_record_t);
+#ifdef _WIN32
+        g_tracker = VirtualAlloc(NULL, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#else
+        g_tracker = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
+        if (!g_tracker) {
+            fprintf(stderr, "FATAL: Could not allocate 2GB memory tracker table!\n");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        /* Wait for other thread to finish allocating */
+        while (!g_tracker) {
+#ifdef _WIN32
+            Sleep(1);
+#else
+            usleep(1000);
+#endif
+        }
+    }
+}
 
 static inline uint32_t ptr_hash(void *ptr) {
     uint64_t h = (uint64_t)ptr;
@@ -246,8 +272,25 @@ static void trigger_oom_abort(const char *op, size_t size, const char *file, int
     exit(EXIT_FAILURE);
 }
 
+static void trigger_tracker_abort(const char *reason, void *ptr, const char *file, int line) {
+    char msg[CBM_SZ_256];
+    int len = snprintf(msg, sizeof(msg), "TRACKER FATAL: %s [ptr=%p] at %s:%d\n", reason, ptr, file, line);
+#ifdef _WIN32
+    HANDLE hErr = GetStdHandle(STD_ERROR_HANDLE);
+    if (hErr && hErr != INVALID_HANDLE_VALUE) {
+        DWORD written;
+        WriteFile(hErr, msg, (DWORD)len, &written, NULL);
+    }
+#else
+    fputs(msg, stderr);
+    fflush(stderr);
+#endif
+    exit(EXIT_FAILURE);
+}
+
 static void tracker_add(void *ptr, size_t size, const char *file, int line) {
     if (!ptr) return;
+    if (!g_tracker) init_tracker_memory();
     TRACKER_LOCK();
     uint32_t idx = ptr_hash(ptr) & TRACKER_MASK;
     for (int i = 0; i < TRACKER_CAPACITY; i++) {
@@ -261,17 +304,18 @@ static void tracker_add(void *ptr, size_t size, const char *file, int line) {
             return;
         }
         if (p == ptr) {
-            fprintf(stderr, "TRACKER FATAL: Pointer %p already tracked (Allocated at %s:%d)!\n", ptr, file, line);
-            abort();
+            TRACKER_UNLOCK();
+            trigger_tracker_abort("Pointer already tracked", ptr, file, line);
         }
         idx = (idx + 1) & TRACKER_MASK;
     }
-    fprintf(stderr, "TRACKER FATAL: Capacity exceeded!\n");
-    abort();
+    TRACKER_UNLOCK();
+    trigger_tracker_abort("Capacity exceeded", ptr, file, line);
 }
 
 static void tracker_remove(void *ptr, const char *file, int line) {
     if (!ptr) return;
+    if (!g_tracker) init_tracker_memory();
     TRACKER_LOCK();
     uint32_t idx = ptr_hash(ptr) & TRACKER_MASK;
     for (int i = 0; i < TRACKER_CAPACITY; i++) {
@@ -282,13 +326,13 @@ static void tracker_remove(void *ptr, const char *file, int line) {
             return;
         }
         if (p == NULL) {
-            fprintf(stderr, "TRACKER FATAL: Double free or untracked pointer %p freed at %s:%d!\n", ptr, file, line);
-            abort();
+            TRACKER_UNLOCK();
+            trigger_tracker_abort("Untracked pointer freed", ptr, file, line);
         }
         idx = (idx + 1) & TRACKER_MASK;
     }
-    fprintf(stderr, "TRACKER FATAL: Double free or untracked pointer %p freed at %s:%d! (Capacity scanned)\n", ptr, file, line);
-    abort();
+    TRACKER_UNLOCK();
+    trigger_tracker_abort("Double free or capacity scanned", ptr, file, line);
 }
 
 void* cbm_malloc_safe(size_t size, const char *file, int line) {
@@ -382,6 +426,10 @@ char* cbm_strndup_safe(const char* s, size_t n, const char *file, int line) {
 }
 
 void cbm_mem_print_audit(void) {
+    if (!g_tracker) {
+        fprintf(stderr, "MEMORY AUDIT OK: No allocations recorded.\n");
+        return;
+    }
     int64_t leaked = atomic_load(&g_audit_bytes);
     
     int leak_count = 0;
@@ -418,3 +466,61 @@ void mg_free(void *ptr) {
     CBM_FREE(ptr);
 }
 #endif
+
+/* ── SQLite Redirection ────────────────────────────────────────── */
+
+static void* sqlite3_mi_malloc(int n) {
+#ifdef CBM_HARDEN_MEMORY
+    return cbm_malloc_safe((size_t)n, "sqlite", 0);
+#else
+    return mi_malloc((size_t)n);
+#endif
+}
+
+static void sqlite3_mi_free(void *p) {
+#ifdef CBM_HARDEN_MEMORY
+    cbm_free_safe(p, "sqlite", 0);
+#else
+    mi_free(p);
+#endif
+}
+
+static void* sqlite3_mi_realloc(void *p, int n) {
+#ifdef CBM_HARDEN_MEMORY
+    return cbm_realloc_safe(p, (size_t)n, "sqlite", 0);
+#else
+    return mi_realloc(p, (size_t)n);
+#endif
+}
+
+static int sqlite3_mi_size(void *p) {
+    return (int)mi_usable_size(p);
+}
+
+static int sqlite3_mi_roundup(int n) {
+    return n;
+}
+
+static int sqlite3_mi_init(void *p) {
+    (void)p;
+    return SQLITE_OK;
+}
+
+static void sqlite3_mi_shutdown(void *p) {
+    (void)p;
+}
+
+static sqlite3_mem_methods mi_methods = {
+    sqlite3_mi_malloc,
+    sqlite3_mi_free,
+    sqlite3_mi_realloc,
+    sqlite3_mi_size,
+    sqlite3_mi_roundup,
+    sqlite3_mi_init,
+    sqlite3_mi_shutdown,
+    NULL
+};
+
+void cbm_mem_hook_sqlite(void) {
+    sqlite3_config(SQLITE_CONFIG_MALLOC, &mi_methods);
+}

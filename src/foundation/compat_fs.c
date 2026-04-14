@@ -95,6 +95,7 @@ cbm_dirent_t *cbm_readdir(cbm_dir_t *d) {
     d->entry.name[nlen] = '\0';
     d->entry.is_dir = (d->find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
     d->entry.d_type = 0; /* Not meaningful on Windows */
+    d->entry.file_size = ((int64_t)d->find_data.nFileSizeHigh << 32) | d->find_data.nFileSizeLow;
     return &d->entry;
 }
 
@@ -206,6 +207,7 @@ cbm_dirent_t *cbm_readdir(cbm_dir_t *d) {
         d->entry.name[nlen] = '\0';
         d->entry.is_dir = (de->d_type == DT_DIR);
         d->entry.d_type = de->d_type;
+        d->entry.file_size = -1; /* POSIX readdir does not provide file size; must stat() */
         return &d->entry;
     }
     return NULL;

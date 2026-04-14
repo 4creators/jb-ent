@@ -805,7 +805,12 @@ int cbm_pipeline_run(cbm_pipeline_t *p) {
     };
     cbm_file_info_t *files = NULL;
     int file_count = 0;
-    int rc = cbm_discover(p->repo_path, &opts, &files, &file_count);
+    int rc;
+#ifdef CBM_ENABLE_OPTIMIZED
+    rc = cbm_discover_optimized(p->repo_path, &opts, &files, &file_count);
+#else
+    rc = cbm_discover(p->repo_path, &opts, &files, &file_count);
+#endif
     if (rc != 0) {
         cbm_log_error("pipeline.err", "phase", "discover", "rc", itoa_buf(rc));
     }
@@ -856,6 +861,7 @@ int cbm_pipeline_run(cbm_pipeline_t *p) {
 
 cleanup:
     cbm_discover_free(files, file_count);
+    cbm_discover_cleanup();
     cbm_gbuf_free(p->gbuf);
     p->gbuf = NULL;
     cbm_registry_free(p->registry);

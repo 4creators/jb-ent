@@ -636,12 +636,13 @@ bool cbm_store_check_integrity(cbm_store_t *s) {
     sqlite3_finalize(stmt);
 
     if (ok) {
-        /* Check that root_path in projects table starts with '/' or a drive letter.
+        /* Check that root_path in projects table starts with '/', '.', '\' or a drive letter.
+         * '.' and '\' are required to support relative paths for our path deduplication system.
          * Corrupt DBs often have numeric strings like "826" in root_path. */
         rc = sqlite3_prepare_v2(
             s->db,
             "SELECT root_path FROM projects WHERE root_path != '' "
-            "AND substr(root_path, 1, 1) NOT IN ('/', 'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z') LIMIT 1;",
+            "AND substr(root_path, 1, 1) NOT IN ('.', '\\', '/', 'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z', 'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z') LIMIT 1;",
             CBM_NOT_FOUND, &stmt, NULL);
         if (rc == SQLITE_OK) {
             if (sqlite3_step(stmt) == SQLITE_ROW) {

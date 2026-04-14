@@ -35,4 +35,8 @@ size_t cbm_mem_worker_budget(int num_workers);
 /* Return unused pages to the OS. Call between files to bound per-file peak. */
 void cbm_mem_collect(void);
 
+/* Hook SQLite to use our audited mimalloc wrappers.
+ * MUST be called before any other sqlite3_* calls. */
+void cbm_mem_hook_sqlite(void);
+
 #endif /* CBM_MEM_H */

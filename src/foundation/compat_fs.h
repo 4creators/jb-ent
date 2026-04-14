@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 
 /* ── Directory iteration ──────────────────────────────────────── */
 
@@ -22,6 +23,7 @@ typedef struct {
     char name[CBM_DIRENT_NAME_MAX];
     bool is_dir;
     unsigned char d_type; /* DT_REG, DT_DIR, DT_LNK, etc. (POSIX only, 0 on Windows) */
+    int64_t file_size;    /* File size (Windows only). -1 on POSIX. */
 } cbm_dirent_t;
 
 /* Open a directory for iteration. Returns NULL on error. */

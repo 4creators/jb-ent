@@ -276,6 +276,7 @@ static void setup_signal_handlers(void) {
 
 int main(int argc, char **argv) {
     mi_version(); /* Force mimalloc DLL to load before ucrtbase on Windows */
+    cbm_mem_hook_sqlite();
 #ifdef CBM_HARDEN_MEMORY
     atexit(cbm_mem_print_audit);
 #endif

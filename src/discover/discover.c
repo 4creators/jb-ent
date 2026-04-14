@@ -207,6 +207,7 @@ typedef struct {
     cbm_file_info_t *files;
     int count;
     int capacity;
+    CBMArena *arena;
 } file_list_t;
 
 static void fl_add(file_list_t *fl, const char *abs_path, const char *rel_path, CBMLanguage lang,
@@ -223,8 +224,8 @@ static void fl_add(file_list_t *fl, const char *abs_path, const char *rel_path, 
     }
 
     cbm_file_info_t *fi = &fl->files[fl->count++];
-    fi->path = CBM_STRDUP(abs_path);
-    fi->rel_path = CBM_STRDUP(rel_path);
+    fi->path = cbm_arena_strdup(fl->arena, abs_path);
+    fi->rel_path = cbm_arena_strdup(fl->arena, rel_path);
     fi->language = lang;
     fi->size = size;
     
@@ -405,19 +406,28 @@ static void walk_dir_process_entry(cbm_dirent_t *entry, const walk_frame_t *fram
         snprintf(rel_path, sizeof(rel_path), "%s", entry->name);
     }
 
-    struct stat st;
-    if (safe_stat(abs_path, &st) != 0) {
-        return;
-    }
-
-    if (S_ISDIR(st.st_mode)) {
+    if (entry->is_dir) {
         if (!should_skip_directory(entry->name, rel_path, opts, gitignore, cbmignore,
                                    frame->local_gi, frame->local_gi_prefix)) {
             walk_push_subdir(stack, top, abs_path, rel_path, frame);
         }
-    } else if (S_ISREG(st.st_mode)) {
+    } else {
+        int64_t file_size = entry->file_size;
+        
+        /* If file size wasn't provided by the enumerator (POSIX), or it's a symlink check, stat it */
+        if (file_size < 0) {
+            struct stat st;
+            if (safe_stat(abs_path, &st) != 0) {
+                return;
+            }
+            if (!S_ISREG(st.st_mode)) {
+                return;
+            }
+            file_size = (int64_t)st.st_size;
+        }
+
         walk_dir_process_file(abs_path, rel_path, entry->name, opts, gitignore, cbmignore,
-                              frame->local_gi, frame->local_gi_prefix, st.st_size, out);
+                              frame->local_gi, frame->local_gi_prefix, file_size, out);
     }
 }
 
@@ -524,7 +534,7 @@ void cbm_discover_free(cbm_file_info_t *files, int count) {
     }
     for (int i = 0; i < count; i++) {
         CBM_FREE(files[i].path);
-        CBM_FREE(files[i].rel_path);
+        /* rel_path is a pointer into path, do not free it */
     }
     CBM_FREE(files);
 }
