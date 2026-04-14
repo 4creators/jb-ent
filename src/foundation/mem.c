@@ -263,7 +263,20 @@ static inline uint32_t ptr_hash(void *ptr) {
     return (uint32_t)h;
 }
 
+static atomic_int g_oom_aborted = 0;
+
 static void trigger_oom_abort(const char *op, size_t size, const char *file, int line) {
+    int expected = 0;
+    if (!atomic_compare_exchange_strong(&g_oom_aborted, &expected, 1)) {
+        while (1) {
+#ifdef _WIN32
+            Sleep(1000);
+#else
+            usleep(1000000);
+#endif
+        }
+    }
+
     static char msg[CBM_SZ_1K];
     
     size_t current_allocated = (size_t)atomic_load(&g_audit_bytes);
