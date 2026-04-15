@@ -177,4 +177,7 @@ int cbm_gbuf_flush_to_store(cbm_gbuf_t *gb, cbm_store_t *store);
  * Returns 0 on success. */
 int cbm_gbuf_merge_into_store(cbm_gbuf_t *gb, cbm_store_t *store);
 
+/* Mathematically prove structural equivalence (isomorphism) between two graphs */
+bool cbm_gbuf_equals(const cbm_gbuf_t *a, const cbm_gbuf_t *b);
+
 #endif /* CBM_GRAPH_BUFFER_H */

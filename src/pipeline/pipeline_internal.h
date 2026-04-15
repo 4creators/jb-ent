@@ -19,7 +19,7 @@
 /* ── Shared pipeline constants ─────────────────────────────────── */
 
 /* Maximum byte budget for tree-sitter extraction per file */
-#define CBM_EXTRACT_BUDGET 5000000
+#define CBM_EXTRACT_BUDGET 5000000ULL
 
 /* Route node QN buffer size (must fit __route__METHOD__/full/url/path) */
 #define CBM_ROUTE_QN_SIZE 768

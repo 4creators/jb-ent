@@ -7,6 +7,7 @@
 #include "test_framework.h"
 #include "graph_buffer/graph_buffer.h"
 #include "store/store.h"
+#include "foundation/compat_fs.h"
 
 /* ── Node operations ───────────────────────────────────────────── */
 
@@ -927,9 +928,57 @@ TEST(gbuf_flush_skips_orphan_edges) {
     PASS();
 }
 
+#ifdef _WIN32
+#include <io.h>
+#define cbm_close _close
+#else
+#include <unistd.h>
+#define cbm_close close
+#endif
+
+static int make_temp_db(char *path, size_t pathsz) {
+    snprintf(path, pathsz, "/tmp/cbm_gbuf_test_XXXXXX");
+    int fd = cbm_mkstemp(path);
+    if (fd < 0) {
+        return -1;
+    }
+    cbm_close(fd);
+    return 0;
+}
+
+TEST(gbuf_sqlite_roundtrip_equivalence) {
+    char path[256];
+    ASSERT_EQ(make_temp_db(path, sizeof(path)), 0);
+
+    /* 1. Create Graph A */
+    cbm_gbuf_t *gbA = cbm_gbuf_new("proj", "/tmp/repo");
+    int64_t n1 = cbm_gbuf_upsert_node(gbA, "Class", "User", "proj.User", "user.c", 1, 10, "{}");
+    int64_t n2 = cbm_gbuf_upsert_node(gbA, "Method", "Login", "proj.User.Login", "user.c", 2, 5, "{\"auth\":true}");
+    cbm_gbuf_insert_edge(gbA, n1, n2, "DEFINES", "{}");
+
+    /* 2. Flush Graph A to SQLite */
+    cbm_store_t *store = cbm_store_open_path(path);
+    ASSERT_EQ(cbm_gbuf_flush_to_store(gbA, store), 0);
+    cbm_store_close(store);
+
+    /* 3. Load SQLite into Graph B */
+    cbm_gbuf_t *gbB = cbm_gbuf_new("proj", "/tmp/repo");
+    ASSERT_EQ(cbm_gbuf_load_from_db(gbB, path, "proj"), 0);
+
+    /* 4. Prove mathematical equivalence */
+    ASSERT_TRUE(cbm_gbuf_equals(gbA, gbB));
+
+    cbm_gbuf_free(gbA);
+    cbm_gbuf_free(gbB);
+    unlink(path);
+    PASS();
+}
+
 /* ── Suite ─────────────────────────────────────────────────────── */
 
 SUITE(graph_buffer) {
+    RUN_TEST(gbuf_sqlite_roundtrip_equivalence);
+
     /* Original tests */
     RUN_TEST(gbuf_create_free);
     RUN_TEST(gbuf_free_null);

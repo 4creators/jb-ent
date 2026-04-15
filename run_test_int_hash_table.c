@@ -1,5 +1,5 @@
-#include "../tests/test_mem_context.c"
-#include "../tests/test_framework.h"
+#include "tests/test_int_hash_table.c"
+#include "tests/test_framework.h"
 #if MI_OVERRIDE
 #include <mimalloc.h>
 #endif
@@ -13,6 +13,6 @@ int main(void) {
 #if MI_OVERRIDE
     mi_version();
 #endif
-    RUN_SUITE(mem_context);
+    RUN_SUITE(int_hash_table);
     TEST_SUMMARY();
 }

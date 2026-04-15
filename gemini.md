@@ -56,4 +56,5 @@ We need to modify \cbm_project_name_from_path\ (or the upstream pipeline logic) 
 4. **Use Subagent-Driven execution** with user reviews at each stage.
 5. **No commit without tests.** Always write unit/integration tests for your changes, and ALWAYS run a stress test before proposing a final git commit.
 6. **Final and very important instruction**: Use relevant skills in working on problems.
+7. **No Meta-Commentary:** Never include technical details about how we work, which tools we use, or what skills are invoked in implementation plans or public documentation.
 

@@ -297,7 +297,9 @@ static void setup_signal_handlers(void) {
 #include "foundation/allocator.h"
 
 int main(int argc, char **argv) {
+#if MI_OVERRIDE
     mi_version(); /* Force mimalloc DLL to load before ucrtbase on Windows */
+#endif
     cbm_mem_hook_sqlite();
 #ifdef CBM_HARDEN_MEMORY
     atexit(cbm_mem_print_audit);

@@ -36,6 +36,7 @@ typedef SSIZE_T ssize_t;
 
 /* ── strdup / strndup ─────────────────────────────────────────── */
 #ifdef _WIN32
+char *cbm_strndup(const char *s, size_t n);
 #else
 #endif
 

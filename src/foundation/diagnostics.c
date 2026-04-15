@@ -100,8 +100,10 @@ static void write_diagnostics(void) {
     size_t current_commit = 0;
     size_t peak_commit = 0;
     size_t page_faults = 0;
+#if MI_OVERRIDE
     mi_process_info(&elapsed_ms, &user_ms, &sys_ms, &current_rss, &peak_rss, &current_commit,
                     &peak_commit, &page_faults);
+#endif
 
     /* Fallback RSS for ASan builds */
     if (current_rss == 0) {

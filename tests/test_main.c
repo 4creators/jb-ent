@@ -10,6 +10,9 @@ int tf_skip_count = 0;
 
 #include "test_framework.h"
 #include <sqlite3.h>
+#if MI_OVERRIDE
+#include <mimalloc.h>
+#endif
 
 /* Forward declarations of suite functions */
 extern void suite_arena(void);
@@ -57,10 +60,15 @@ extern void suite_incremental(void);
 extern void suite_simhash(void);
 
 int main(void) {
+#if MI_OVERRIDE
+    mi_version(); /* Force mimalloc override initialization on Windows */
+#endif
     printf("\n  codebase-memory-mcp  C test suite\n");
 
     /* Foundation */
     RUN_SUITE(arena);
+    RUN_SUITE(int_hash_table);
+    RUN_SUITE(edge_set);
     RUN_SUITE(hash_table);
     RUN_SUITE(dyn_array);
     RUN_SUITE(str_intern);
@@ -155,4 +163,6 @@ int main(void) {
     /* Release sqlite3 internal caches so ASan doesn't report them as leaks */
     sqlite3_shutdown();
     TEST_SUMMARY();
+}
+Y();
 }

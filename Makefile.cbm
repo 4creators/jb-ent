@@ -257,6 +257,8 @@ EXISTING_C_SRCS = $(EXTRACTION_SRCS) $(LSP_SRCS) $(TS_RUNTIME_SRC) \
 TEST_FOUNDATION_SRCS = \
     tests/test_main.c \
     tests/test_arena.c \
+    tests/test_int_hash_table.c \
+    tests/test_edge_set.c \
     tests/test_hash_table.c \
     tests/test_dyn_array.c \
     tests/test_str_intern.c \

@@ -123,9 +123,11 @@ void cbm_mem_init(size_t explicit_budget_mb, double ram_fraction) {
     /* Reduce upfront memory: don't eagerly commit arenas.
      * Force decommit on purge (MADV_FREE_REUSABLE on macOS) so RSS
      * drops immediately instead of staying high until memory pressure. */
+#if MI_OVERRIDE
     mi_option_set(mi_option_arena_eager_commit, 0);
     mi_option_set(mi_option_purge_decommits, SKIP_ONE);
     mi_option_set(mi_option_purge_delay, 0); /* immediate purge, no 1s delay */
+#endif
 
     cbm_system_info_t info = cbm_system_info();
     if (explicit_budget_mb > 0) {
@@ -165,7 +167,9 @@ size_t cbm_mem_peak_rss(void) {
     return 0;
 #else
     size_t peak_rss = 0;
+#if MI_OVERRIDE
     mi_process_info(NULL, NULL, NULL, NULL, &peak_rss, NULL, NULL, NULL);
+#endif
     if (peak_rss > 0) {
         return peak_rss;
     }
@@ -192,7 +196,9 @@ size_t cbm_mem_worker_budget(int num_workers) {
 }
 
 void cbm_mem_collect(void) {
+#if MI_OVERRIDE
     mi_collect(true);
+#endif
 }
 
 /* ── Hardened Memory Auditing & OOM Aborts ────────────────────────── */
@@ -405,7 +411,7 @@ static void check_circuit_breaker(size_t request_size) {
 
 void* cbm_malloc_safe(size_t size, const char *file, int line) {
     check_circuit_breaker(size);
-#ifdef _MSC_VER
+#if MI_OVERRIDE
     void *p = mi_malloc(size);
 #else
     void *p = malloc(size);
@@ -418,7 +424,7 @@ void* cbm_malloc_safe(size_t size, const char *file, int line) {
 
 void* cbm_calloc_safe(size_t count, size_t size, const char *file, int line) {
     check_circuit_breaker(count * size);
-#ifdef _MSC_VER
+#if MI_OVERRIDE
     void *p = mi_calloc(count, size);
 #else
     void *p = calloc(count, size);
@@ -437,7 +443,7 @@ void* cbm_realloc_safe(void* ptr, size_t size, const char *file, int line) {
     if (ptr) {
         tracker_remove(ptr, file, line);
     }
-#ifdef _MSC_VER
+#if MI_OVERRIDE
     void *p = mi_realloc(ptr, size);
 #else
     void *p = realloc(ptr, size);
@@ -455,7 +461,7 @@ void cbm_free_safe(void* ptr, const char *file, int line) {
     if (ptr) {
         tracker_remove(ptr, file, line);
         atomic_fetch_sub(&g_audit_bytes, mi_usable_size(ptr));
-#ifdef _MSC_VER
+#if MI_OVERRIDE
         mi_free(ptr);
 #else
         free(ptr);
@@ -466,7 +472,7 @@ void cbm_free_safe(void* ptr, const char *file, int line) {
 char* cbm_strdup_safe(const char* s, const char *file, int line) {
     if (!s) return NULL;
     check_circuit_breaker(strlen(s) + 1);
-#ifdef _MSC_VER
+#if MI_OVERRIDE
     char *p = mi_strdup(s);
 #else
     char *p = _strdup(s); /* Or standard strdup depending on platform, _strdup on MSVC */
@@ -485,7 +491,7 @@ char* cbm_strndup_safe(const char* s, size_t n, const char *file, int line) {
     size_t len = 0;
     while (len < n && s[len]) len++;
     check_circuit_breaker(len + 1);
-#ifdef _MSC_VER
+#if MI_OVERRIDE
     char *p = (char *)mi_malloc(len + 1);
 #else
     char *p = malloc(len + 1);
@@ -542,6 +548,8 @@ void mg_free(void *ptr) {
 
 /* ── SQLite Redirection ────────────────────────────────────────── */
 
+#if MI_OVERRIDE || defined(CBM_HARDEN_MEMORY)
+
 static void* sqlite3_mi_malloc(int n) {
 #ifdef CBM_HARDEN_MEMORY
     return cbm_malloc_safe((size_t)n, "sqlite", 0);
@@ -567,7 +575,11 @@ static void* sqlite3_mi_realloc(void *p, int n) {
 }
 
 static int sqlite3_mi_size(void *p) {
+#if MI_OVERRIDE
     return (int)mi_usable_size(p);
+#else
+    return 0; /* Fallback when not using mimalloc directly */
+#endif
 }
 
 static int sqlite3_mi_roundup(int n) {
@@ -597,3 +609,11 @@ static sqlite3_mem_methods mi_methods = {
 void cbm_mem_hook_sqlite(void) {
     sqlite3_config(SQLITE_CONFIG_MALLOC, &mi_methods);
 }
+
+#else
+
+void cbm_mem_hook_sqlite(void) {
+    /* Do nothing, let SQLite use its default allocator under ASan */
+}
+
+#endif

@@ -17,6 +17,21 @@
 
 
 
+/* ── strdup / strndup ─────────────────────────────────────────── */
+
+#ifdef _WIN32
+char *cbm_strndup(const char *s, size_t n) {
+    if (!s) return NULL;
+    size_t len = 0;
+    while (len < n && s[len]) len++;
+    char *p = (char *)malloc(len + 1);
+    if (!p) return NULL;
+    memcpy(p, s, len);
+    p[len] = '\0';
+    return p;
+}
+#endif
+
 /* ── strcasestr (Windows lacks it) ────────────────────────────── */
 
 #ifdef _WIN32

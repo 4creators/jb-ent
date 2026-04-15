@@ -4,6 +4,22 @@ project(CodebaseMemoryMCP C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 14)
 
+option(CBM_ENABLE_ASAN "Enable AddressSanitizer" OFF)
+
+if(CBM_ENABLE_ASAN)
+    set(MI_OVERRIDE_VAL 0)
+    if(MSVC)
+        add_compile_options(/fsanitize=address)
+        # MSVC requires /MD or /MT to link ASan runtime properly. Default is /MD.
+    else()
+        add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address)
+    endif()
+else()
+    set(MI_OVERRIDE_VAL 1)
+    add_definitions(-DCBM_HARDEN_MEMORY)
+endif()
+
 # Global compiler definitions
 add_definitions(
     -D_CRT_SECURE_NO_WARNINGS 
@@ -12,8 +28,7 @@ add_definitions(
     -D_GNU_SOURCE
     -DMG_ENABLE_LOG=0
     -DHAVE_LIBGIT2=1
-    -DMI_OVERRIDE=1
-    -DCBM_HARDEN_MEMORY
+    -DMI_OVERRIDE=${MI_OVERRIDE_VAL}
     -DCBM_ENABLE_OPTIMIZED=1
     -DMG_ENABLE_CUSTOM_CALLOC=1
 )
@@ -83,8 +98,7 @@ add_custom_command(
 )
 
 # Group all sources to recreate directory structure in IDE
-set(ALL_SOURCES
-    src/main.c
+set(LIB_SOURCES
     ${FOUNDATION_SRCS}
     ${STORE_SRCS}
     ${CYPHER_SRCS}
@@ -104,24 +118,33 @@ set(ALL_SOURCES
     ${VECTOR_C_FILE}
 )
 
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${ALL_SOURCES})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES src/main.c ${LIB_SOURCES})
 
-# Create the main executable target
-add_executable(codebase-memory-mcp ${ALL_SOURCES})
+add_library(codebase-memory-mcp-lib OBJECT ${LIB_SOURCES})
 
-# Increase Stack Size on MSVC to 8MB to prevent silent stack overflow
-if(MSVC)
-    set_target_properties(codebase-memory-mcp PROPERTIES LINK_FLAGS "/STACK:8388608")
+# IMPORTANT: mimalloc MUST be the very first library linked so it initializes before ucrtbased.dll
+if(NOT CBM_ENABLE_ASAN)
+    set(MIMALLOC_LIB mimalloc)
+    target_link_libraries(codebase-memory-mcp-lib PUBLIC ${MIMALLOC_LIB})
+else()
+    set(MIMALLOC_LIB "")
 endif()
 
-# Link vcpkg libraries
-target_link_libraries(codebase-memory-mcp PRIVATE
-    mimalloc
+target_link_libraries(codebase-memory-mcp-lib PUBLIC
     unofficial::sqlite3::sqlite3
     xxHash::xxhash
     lz4::lz4
     libgit2::libgit2package
 )
+
+# Create the main executable target
+add_executable(codebase-memory-mcp src/main.c)
+target_link_libraries(codebase-memory-mcp PRIVATE codebase-memory-mcp-lib)
+
+# Increase Stack Size on MSVC to 8MB to prevent silent stack overflow
+if(MSVC)
+    set_target_properties(codebase-memory-mcp PROPERTIES LINK_FLAGS "/STACK:8388608")
+endif()
 
 # Link Windows system libraries
 if(WIN32)
@@ -129,3 +152,5 @@ if(WIN32)
 endif()
 
 add_subdirectory(tests)
+
+

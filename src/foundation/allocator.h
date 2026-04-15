@@ -29,27 +29,57 @@ extern char* cbm_strndup_safe(const char* s, size_t n, const char *file, int lin
 /* Expose the audit counter for main() to print at exit */
 extern void cbm_mem_print_audit(void);
 
-#else
+#else /* Normal allocation (No Harden Memory) */
 
 #include "foundation/compat.h"
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _MSC_VER
-#include <mimalloc.h>
-#define CBM_MALLOC(size)      mi_malloc(size)
-#define CBM_CALLOC(c, s)      mi_calloc(c, s)
-#define CBM_REALLOC(p, s)     mi_realloc(p, s)
-#define CBM_FREE(p)           mi_free(p)
-#define CBM_STRDUP(s)         mi_strdup(s)
-#define CBM_STRNDUP(s, n)     mi_strndup(s, n)
+/* 1. Microsoft Visual C++ (and Windows toolchains targeting MSVC ABI) */
+#if defined(_MSC_VER) || defined(_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__)
+    #if MI_OVERRIDE
+        #include <mimalloc.h>
+        #define CBM_MALLOC(size)      mi_malloc(size)
+        #define CBM_CALLOC(c, s)      mi_calloc(c, s)
+        #define CBM_REALLOC(p, s)     mi_realloc(p, s)
+        #define CBM_FREE(p)           mi_free(p)
+        #define CBM_STRDUP(s)         mi_strdup(s)
+        #define CBM_STRNDUP(s, n)     mi_strndup(s, n)
+    #else
+        #define CBM_MALLOC(size)      malloc(size)
+        #define CBM_CALLOC(c, s)      calloc(c, s)
+        #define CBM_REALLOC(p, s)     realloc(p, s)
+        #define CBM_FREE(p)           free(p)
+        #ifdef _MSC_VER
+            #define CBM_STRDUP(s)         _strdup(s)
+        #else
+            #define CBM_STRDUP(s)         strdup(s)
+        #endif
+        #define CBM_STRNDUP(s, n)     cbm_strndup(s, n) /* Shim required for cross-platform fallback */
+    #endif
+
+/* 2. GCC or Clang (Linux/macOS/POSIX) */
+#elif defined(__GNUC__) || defined(__clang__)
+    #if MI_OVERRIDE
+        #include <mimalloc.h>
+        #define CBM_MALLOC(size)      mi_malloc(size)
+        #define CBM_CALLOC(c, s)      mi_calloc(c, s)
+        #define CBM_REALLOC(p, s)     mi_realloc(p, s)
+        #define CBM_FREE(p)           mi_free(p)
+        #define CBM_STRDUP(s)         mi_strdup(s)
+        #define CBM_STRNDUP(s, n)     mi_strndup(s, n)
+    #else
+        #define CBM_MALLOC(size)      malloc(size)
+        #define CBM_CALLOC(c, s)      calloc(c, s)
+        #define CBM_REALLOC(p, s)     realloc(p, s)
+        #define CBM_FREE(p)           free(p)
+        #define CBM_STRDUP(s)         strdup(s)
+        #define CBM_STRNDUP(s, n)     strndup(s, n)
+    #endif
+
+/* X. Unknown Toolchain */
 #else
-#define CBM_MALLOC(size)      malloc(size)
-#define CBM_CALLOC(c, s)      calloc(c, s)
-#define CBM_REALLOC(p, s)     realloc(p, s)
-#define CBM_FREE(p)           free(p)
-#define CBM_STRDUP(s)         cbm_strdup(s)
-#define CBM_STRNDUP(s, n)     cbm_strndup(s, n)
+    #error "Unsupported compiler. Please add memory allocation macros for your toolchain in allocator.h"
 #endif
 
 #define cbm_mem_print_audit() ((void)0)

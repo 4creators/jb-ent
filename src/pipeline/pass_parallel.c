@@ -498,8 +498,12 @@ static void extract_worker(int worker_id, void *ctx_ptr) {
 
         uint64_t file_elapsed_ms = (extract_now_ns() - file_t0) / PP_USEC_PER_MS;
 
-        if (!result) {
-            log_extract_fail(sort_pos, file_elapsed_ms, fi->rel_path);
+        if (!result || (result->error_msg && result->error_msg[0] != '\0')) {
+            cbm_log_error("parallel.extract.file.fail", "pos", itoa_log(sort_pos), "elapsed_ms",
+                         itoa_log((int)file_elapsed_ms), "path", fi->rel_path);
+            if (result) {
+                cbm_free_result(result);
+            }
             free_source(source);
             ws->errors++;
             continue;
@@ -520,7 +524,7 @@ static void extract_worker(int worker_id, void *ctx_ptr) {
         cbm_free_tree(result);
 
         /* Free source buffer — extraction captured everything needed. */
-        free_source(source);
+        free_source(source);    
 
         /* Cache result (arena + extracted data, no tree) for Phase 3B and Phase 4 */
         ec->result_cache[file_idx] = result;

@@ -1,7 +1,10 @@
 #include "foundation/mem_context.h"
 #include "foundation/allocator.h"
 #include "foundation/str_intern.h"
+
+#if MI_OVERRIDE
 #include <mimalloc.h>
+#endif
 
 #ifdef _WIN32
 #include <windows.h>
@@ -10,11 +13,19 @@
 #endif
 
 #ifndef CBM_HEAP_MALLOC
+#if MI_OVERRIDE
 #define CBM_HEAP_MALLOC(heap, size) mi_heap_malloc((heap), (size))
+#else
+#define CBM_HEAP_MALLOC(heap, size) CBM_MALLOC(size)
+#endif
 #endif
 
 struct CBMContext {
+#if MI_OVERRIDE
     mi_heap_t *heap;
+#else
+    void *heap;
+#endif
 #ifdef _WIN32
     SRWLOCK lock;
 #else
@@ -35,7 +46,11 @@ CBMContext* cbm_ctx_new(void) {
     pthread_rwlock_init(&ctx->lock, NULL);
 #endif
 
+#if MI_OVERRIDE
     ctx->heap = mi_heap_new();
+#else
+    ctx->heap = NULL;
+#endif
     ctx->intern_pool = cbm_intern_create();
 
     return ctx;
@@ -56,10 +71,12 @@ void cbm_ctx_free(CBMContext *ctx) {
         cbm_intern_free(ctx->intern_pool);
         ctx->intern_pool = NULL;
     }
+#if MI_OVERRIDE
     if (ctx->heap) {
         mi_heap_destroy(ctx->heap);
         ctx->heap = NULL;
     }
+#endif
 
 #ifdef _WIN32
     ReleaseSRWLockExclusive(&ctx->lock);
@@ -72,9 +89,15 @@ void cbm_ctx_free(CBMContext *ctx) {
 }
 
 void* cbm_ctx_alloc(CBMContext *ctx, size_t size) {
+#if MI_OVERRIDE
     if (!ctx || !ctx->heap) {
         return NULL;
     }
+#else
+    if (!ctx) {
+        return NULL;
+    }
+#endif
 
     void *ptr;
 

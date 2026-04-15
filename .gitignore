@@ -43,8 +43,11 @@ reference/
 
 # Build artifacts
 build/
+build-*/
+Testing/
 node_modules/
 graph-ui/dist/
+cbm_proof_*
 
 # Generated reports
 BENCHMARK_REPORT.md
