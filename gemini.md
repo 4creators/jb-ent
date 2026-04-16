@@ -1,47 +1,3 @@
-﻿# Gemini AI Session Handover: Unified WSL/Windows Project Path Resolution
-
-**CRITICAL DIRECTIVE FOR AI**: When beginning a new session, follow these strict initialization steps and established patterns:
-1. **MANDATORY SYNCHRONIZATION**: The absolute first action in any new session MUST be to synchronize the \main\ branch with the \origin\ remote (e.g., \git pull --rebase origin main\).
-2. **CONTEXT GATHERING**: After reading this \gemini.md\ file, you MUST read \README.md\ before starting any actual work or modifying files.
-3. **DEVELOPMENT WORKFLOW**: Always write code, its accompanying tests, and update the relevant documentation BEFORE committing any code changes.
-4. **INDEX VERIFICATION**: Verify that the codebase is up to date and indexed with the codebase-memory-mcp server.
-5. **MCP FIRST APPROACH**: When searching for information on code, FIRST use the MCP server. Try different queries, and only if they fail should you read the file directly. Before reading a file, you must first find the code structure using information from the MCP server.
-6. **MCP EFFICIENCY**: The codebase-memory-mcp server is very fast and to a large extent accurate. Its use saves user tokens and speeds up work making it much more precise and successful.
-
----
-
-## The Problem: MCP Project Fragmentation
-During a previous session on a different project, we discovered a critical "identity crisis" occurring between Windows and WSL2 environments. When the Gemini CLI or an MCP client accesses a repository via a Windows native path (\E:\src\...\) versus a WSL path (\\\wsl.localhost\...\ or \/home/jacek/...\), the \codebase-memory-mcp\ server generates entirely different SQLite database files for the exact same repository.
-
-This leads to:
-1. "Project not found or not indexed" errors when querying the graph from a different OS context than the one that indexed it.
-2. Massive database bloat as the same repository is re-indexed into multiple fragmented \.db\ files in the \~/.codebase-memory/cache/\ directory.
-
-## Root Cause Analysis
-The fragmentation originates in \src/pipeline/fqn.c\ within the \cbm_project_name_from_path(const char *abs_path)\ function.
-
-Currently, the MCP server derives the project's unique identifier strictly by sanitizing the absolute file path (replacing \/\ and \:\ with \-\). 
-*   Path A: \E:/src/ai/codebase-mcp\ -> Project ID: \E-src-ai-codebase-mcp\
-*   Path B: \//wsl.localhost/ubuntu/home/jacek/src/codebase-mcp\ -> Project ID: \wsl.localhost-ubuntu-home-jacek-src-codebase-mcp\
-
-Because the absolute paths differ across the Windows/WSL boundary, the MCP server fails to recognize them as the same physical project.
-
-## Proposed Implementation Strategy
-We need to modify \cbm_project_name_from_path\ (or the upstream pipeline logic) to support a unified, deterministic project identifier that is independent of the host OS mounting path.
-
-**Potential Approaches to Explore:**
-1.  **The \.cbm_project_name\ Override:** Modify the C code to look for a hidden \.cbm_project_name\ file in the repository root. If it exists, read the string and use it as the definitive Project ID. If not, fallback to the legacy path-sanitization logic.
-2.  **Git Remote Origin Hashing:** Similar to how we fixed the \kconfig-analyzer\ cache, we could spawn a subprocess to read the \git remote get-url origin\ and hash it. (However, this introduces external dependencies to the fast C pipeline).
-3.  **Git Config Reading:** Read the \epo_path/.git/config\ file natively in C to extract the remote URL or repository name.
-
-## Next Steps for this Session
-1. Evaluate the proposed approaches and implement the most robust, performant C solution in \src/pipeline/fqn.c\ (or relevant architecture).
-2. Ensure no memory leaks are introduced (valgrind/asan).
-3. Write comprehensive C unit tests in the \	ests/\ directory to prove that WSL, Windows, and Linux paths resolve to the exact same Project ID when the unification logic is triggered.
-4. Compile the server via \Makefile.cbm\ and restart the Gemini CLI to apply the fix.
-
----
-
 ## Mandatory Programming Workflow
 **CRITICAL DIRECTIVE FOR ALL PROGRAMMING WORK**: You must strictly follow this procedure for ANY code changes:
 
@@ -58,3 +14,41 @@ We need to modify \cbm_project_name_from_path\ (or the upstream pipeline logic) 
 6. **Final and very important instruction**: Use relevant skills in working on problems.
 7. **No Meta-Commentary:** Never include technical details about how we work, which tools we use, or what skills are invoked in implementation plans or public documentation.
 
+---
+
+# Gemini AI Session Handover: Unified WSL/Windows Project Path Resolution
+
+**CRITICAL DIRECTIVE FOR AI**: When beginning a new session, follow these strict initialization steps and established patterns:
+1. **MANDATORY SYNCHRONIZATION**: The absolute first action in any new session MUST be to synchronize the `master` branch with the `origin` remote (e.g., `git pull --rebase origin master`).
+2. **CONTEXT GATHERING**: After reading this `gemini.md` file, you MUST read `README.md` before starting any actual work or modifying files.
+3. **DEVELOPMENT WORKFLOW**: Always write code, its accompanying tests, and update the relevant documentation BEFORE committing any code changes.
+4. **INDEX VERIFICATION**: Verify that the codebase is up to date and indexed with the jb-ent server.
+5. **MCP FIRST APPROACH**: When searching for information on code, FIRST use the MCP server. Try different queries, and only if they fail should you read the file directly. Before reading a file, you must first find the code structure using information from the MCP server.
+6. **MCP EFFICIENCY**: The jb-ent server is very fast and to a large extent accurate. Its use saves user tokens and speeds up work making it much more precise and successful.
+
+---
+
+## The Problem: MCP Project Fragmentation
+During the initial development phase, we discovered a critical "identity crisis" between Windows and WSL2 environments. When the Gemini CLI or an MCP client accesses a repository via a Windows native path versus a WSL path, the server generates entirely different SQLite database files for the exact same repository.
+
+## Resolution Strategy: jb-ent Unified Identity
+The **jb-ent** project addresses this by implementing a deterministic project identifier independent of the host OS mounting path.
+
+**Implementation Details:**
+1. **Primary ID:** The first git commit hash (`git rev-list --max-parents=0 HEAD`).
+2. **Fallback:** A persistent UUID stored in the project's configuration directory.
+3. **Rust Orchestration:** The `jb-ent` Rust-led architecture handles cross-platform path normalization and identity resolution before passing requests to the legacy C11 engine.
+
+## Current Project Structure
+- `src/`: Rust orchestration layer (MCP server, CLI, Configuration, Identity).
+- `src-c/`: Consolidated legacy C11 engine (structural analysis, graph storage).
+- `docs/`: Design specifications and migration history.
+
+---
+
+## Current Goal
+Implement the core functionality of **jb-ent**, establishing a sophisticated code analysis platform. This includes:
+- Building an efficient parsing and graph storage engine.
+- Integrating vector-based database search for the code knowledge graph.
+- Enabling seamless data access via CLI, MCP server, and an integrated SQLite engine.
+- Developing the FFI bridge to link the Rust orchestration layer with the high-performance C11 engine.

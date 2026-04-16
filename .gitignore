@@ -1,0 +1,27 @@
+# Rust
+/target
+**/*.rs.bk
+!Cargo.lock
+
+# C/C++
+/build/
+/build-asan/
+/Testing/
+*.exe
+*.obj
+*.o
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+
+# IDEs
+.vs/
+.vscode/
+*.swp
+*.swo
+
+# Project specific
+.cbm/
+!src-c/.gitignore
