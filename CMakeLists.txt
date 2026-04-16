@@ -46,48 +46,48 @@ find_package(mimalloc CONFIG REQUIRED)
 
 # Include directories
 include_directories(
-    src
-    internal/cbm
-    vendored
-    vendored/tre
-    internal/cbm/vendored/ts_runtime/include
-    internal/cbm/vendored/ts_runtime/src
+    src-c
+    src-c/internal/cbm
+    src-c/vendored
+    src-c/vendored/tre
+    src-c/internal/cbm/vendored/ts_runtime/include
+    src-c/internal/cbm/vendored/ts_runtime/src
 )
 
 # Glob all source files AND headers to make them show up in IDE
-file(GLOB_RECURSE FOUNDATION_SRCS "src/foundation/*.c" "src/foundation/*.h")
-file(GLOB_RECURSE STORE_SRCS "src/store/*.c" "src/store/*.h")
-file(GLOB_RECURSE CYPHER_SRCS "src/cypher/*.c" "src/cypher/*.h")
-file(GLOB_RECURSE MCP_SRCS "src/mcp/*.c" "src/mcp/*.h")
-file(GLOB_RECURSE DISCOVER_SRCS "src/discover/*.c" "src/discover/*.h")
-file(GLOB_RECURSE GRAPH_BUFFER_SRCS "src/graph_buffer/*.c" "src/graph_buffer/*.h")
-file(GLOB_RECURSE PIPELINE_SRCS "src/pipeline/*.c" "src/pipeline/*.h")
-file(GLOB_RECURSE SIMHASH_SRCS "src/simhash/*.c" "src/simhash/*.h")
-file(GLOB_RECURSE SEMANTIC_SRCS "src/semantic/*.c" "src/semantic/*.h")
-file(GLOB_RECURSE TRACES_SRCS "src/traces/*.c" "src/traces/*.h")
-file(GLOB_RECURSE WATCHER_SRCS "src/watcher/*.c" "src/watcher/*.h")
-file(GLOB_RECURSE CLI_SRCS "src/cli/*.c" "src/cli/*.h")
-file(GLOB_RECURSE UI_SRCS "src/ui/*.c" "src/ui/*.h")
+file(GLOB_RECURSE FOUNDATION_SRCS "src-c/foundation/*.c" "src-c/foundation/*.h")
+file(GLOB_RECURSE STORE_SRCS "src-c/store/*.c" "src-c/store/*.h")
+file(GLOB_RECURSE CYPHER_SRCS "src-c/cypher/*.c" "src-c/cypher/*.h")
+file(GLOB_RECURSE MCP_SRCS "src-c/mcp/*.c" "src-c/mcp/*.h")
+file(GLOB_RECURSE DISCOVER_SRCS "src-c/discover/*.c" "src-c/discover/*.h")
+file(GLOB_RECURSE GRAPH_BUFFER_SRCS "src-c/graph_buffer/*.c" "src-c/graph_buffer/*.h")
+file(GLOB_RECURSE PIPELINE_SRCS "src-c/pipeline/*.c" "src-c/pipeline/*.h")
+file(GLOB_RECURSE SIMHASH_SRCS "src-c/simhash/*.c" "src-c/simhash/*.h")
+file(GLOB_RECURSE SEMANTIC_SRCS "src-c/semantic/*.c" "src-c/semantic/*.h")
+file(GLOB_RECURSE TRACES_SRCS "src-c/traces/*.c" "src-c/traces/*.h")
+file(GLOB_RECURSE WATCHER_SRCS "src-c/watcher/*.c" "src-c/watcher/*.h")
+file(GLOB_RECURSE CLI_SRCS "src-c/cli/*.c" "src-c/cli/*.h")
+file(GLOB_RECURSE UI_SRCS "src-c/ui/*.c" "src-c/ui/*.h")
 
 # Tree-sitter extraction and grammar sources
-file(GLOB CBM_SRCS "internal/cbm/*.c" "internal/cbm/*.h")
-list(REMOVE_ITEM CBM_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/internal/cbm/arena.c")
-file(GLOB CBM_CXX_SRCS "internal/cbm/*.cpp" "internal/cbm/*.hpp")
+file(GLOB CBM_SRCS "src-c/internal/cbm/*.c" "src-c/internal/cbm/*.h")
+list(REMOVE_ITEM CBM_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/src-c/internal/cbm/arena.c")
+file(GLOB CBM_CXX_SRCS "src-c/internal/cbm/*.cpp" "src-c/internal/cbm/*.hpp")
 
 # Vendored C files not in vcpkg
 file(GLOB_RECURSE VENDORED_SRCS
-    "vendored/yyjson/*.c" "vendored/yyjson/*.h"
-    "vendored/mongoose/*.c" "vendored/mongoose/*.h"
+    "src-c/vendored/yyjson/*.c" "src-c/vendored/yyjson/*.h"
+    "src-c/vendored/mongoose/*.c" "src-c/vendored/mongoose/*.h"
 )
-list(APPEND VENDORED_SRCS "vendored/tre/tre_all.c")
-file(GLOB VENDORED_TRE_HEADERS "vendored/tre/*.h")
+list(APPEND VENDORED_SRCS "src-c/vendored/tre/tre_all.c")
+file(GLOB VENDORED_TRE_HEADERS "src-c/vendored/tre/*.h")
 list(APPEND VENDORED_SRCS ${VENDORED_TRE_HEADERS})
 
 # Build bin2c tool
-add_executable(bin2c tools/bin2c.c)
+add_executable(bin2c src-c/tools/bin2c.c)
 
 # Generate C array from Nomic vector binary blob
-set(VECTOR_BIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vendored/nomic/code_vectors.bin")
+set(VECTOR_BIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src-c/vendored/nomic/code_vectors.bin")
 set(VECTOR_C_FILE "${CMAKE_CURRENT_BINARY_DIR}/code_vectors_blob.c")
 
 add_custom_command(
@@ -118,7 +118,7 @@ set(LIB_SOURCES
     ${VECTOR_C_FILE}
 )
 
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES src/main.c ${LIB_SOURCES})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src-c FILES src-c/main.c ${LIB_SOURCES})
 
 add_library(codebase-memory-mcp-lib OBJECT ${LIB_SOURCES})
 
@@ -138,7 +138,7 @@ target_link_libraries(codebase-memory-mcp-lib PUBLIC
 )
 
 # Create the main executable target
-add_executable(codebase-memory-mcp src/main.c)
+add_executable(codebase-memory-mcp src-c/main.c)
 target_link_libraries(codebase-memory-mcp PRIVATE codebase-memory-mcp-lib)
 
 # Increase Stack Size on MSVC to 8MB to prevent silent stack overflow
@@ -151,6 +151,6 @@ if(WIN32)
     target_link_libraries(codebase-memory-mcp PRIVATE ws2_32 psapi bcrypt crypt32 winhttp rpcrt4)
 endif()
 
-add_subdirectory(tests)
+add_subdirectory(src-c/tests)
 
 
