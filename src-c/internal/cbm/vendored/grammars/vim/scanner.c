@@ -256,7 +256,6 @@ static bool lex_string(TSLexer *lexer) {
       return lex_literal_string(lexer);
     default:
       assert(0);
-      return false;
   }
 }
 

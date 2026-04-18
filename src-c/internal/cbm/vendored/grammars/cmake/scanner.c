@@ -1,6 +1,6 @@
 #include <string.h>
-#include "tree_sitter/alloc.h"
-#include "tree_sitter/parser.h"
+#include <tree_sitter/alloc.h>
+#include <tree_sitter/parser.h>
 #include <wctype.h>
 
 enum TokenType {

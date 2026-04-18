@@ -458,10 +458,12 @@ static bool scan_preproc_unary_operator(TSLexer *lexer) {
 
 static void track_labeled_do(Scanner *scanner, int32_t label) {
     // check if label already exists
-    int i = scanner->depth - 1;
-    if (scanner->labels[i] == label) {
+    if (scanner->depth > 0) {
+      int i = scanner->depth - 1;
+      if (scanner->labels[i] == label) {
         scanner->counts[i]++;
         return;
+      }
     }
 
     // not at top of stack, assume new label, add it to stack

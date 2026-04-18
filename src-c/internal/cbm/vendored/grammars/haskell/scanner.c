@@ -648,8 +648,7 @@ static uint32_t column(Env *env) {
  */
 static void advance(Env *env) {
   if (not_eof(env)) {
-    int32_t c = PEEK;
-    array_push(&env->state->lookahead, c);
+    array_push(&env->state->lookahead, PEEK);
     env->lexer->advance(env->lexer, false);
   }
 }
