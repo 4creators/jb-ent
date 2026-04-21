@@ -10,7 +10,7 @@ pub struct McpService;
 impl ServerHandler for McpService {}
 
 pub struct McpServer {
-    inner: Router<McpService>,
+    _inner: Router<McpService>,
 }
 
 impl McpServer {
@@ -18,7 +18,7 @@ impl McpServer {
         let server = Router::new(McpService);
         
         Ok(McpServer {
-            inner: server,
+            _inner: server,
         })
     }
 }

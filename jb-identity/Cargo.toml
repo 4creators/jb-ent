@@ -1,30 +1,17 @@
-[workspace]
-members = [
-    ".",
-    "jb-identity"
-]
-
 [package]
-name = "jb-ent"
+name = "jb-identity"
 version = "0.1.0"
 edition = "2024"
 authors = ["Jacek Błaszczyński <jacek.blaszczynski@outlook.com>"]
 license = "AGPL-3.0-only"
+description = "A deterministic project identity resolution library"
 
 [dependencies]
+git2 = "0.20"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
-git2 = "0.20"
-tokio = { version = "1.52.0", features = ["full"] }
-tower-lsp = "0.20"
-clap = { version = "4.0", features = ["derive"] }
 anyhow = "1.0"
-log = "0.4"
-env_logger = "0.11.10"
-libc = "0.2"
-cc = "1.0"
-rmcp = { version = "1.5.0", features = ["server"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
