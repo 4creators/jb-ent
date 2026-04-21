@@ -1,6 +1,7 @@
 {
   "name": "codebase-memory-mcp",
   "version-string": "0.5.0",
+  "builtin-baseline": "5e6578b62d9e4ac5a563e816802a56818540cd2e",
   "dependencies": [
     "sqlite3",
     "xxhash",

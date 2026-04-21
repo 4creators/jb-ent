@@ -26,6 +26,10 @@ typedef struct {
         uint8_t kind;
     } scopes[MAX_SCOPES];
     int scope_top;
+
+    TSNode *parents;
+    uint32_t parents_capacity;
+    TSNode current_parent;
 } WalkState;
 
 // Per-node handler prototypes. Each is called once per node during the

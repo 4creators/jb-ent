@@ -3847,6 +3847,9 @@ void simplecpp::preprocess(simplecpp::TokenList &output, const simplecpp::TokenL
 void simplecpp::cleanup(FileDataCache &cache)
 {
     cache.clear();
+#ifdef SIMPLECPP_WINDOWS
+    nonExistingFilesCache.clear();
+#endif
 }
 
 simplecpp::cstd_t simplecpp::getCStd(const std::string &std)

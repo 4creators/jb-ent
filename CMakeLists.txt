@@ -19,10 +19,10 @@ else()
     set(MI_OVERRIDE_VAL 1)
     add_definitions(-DCBM_HARDEN_MEMORY)
 endif()
-
 # Global compiler definitions
 add_definitions(
-    -D_CRT_SECURE_NO_WARNINGS 
+    -D_CRT_SECURE_NO_WARNINGS
+    -DTREE_SITTER_REUSE_ALLOCATOR
     -D_CRT_NONSTDC_NO_DEPRECATE 
     -D_DEFAULT_SOURCE 
     -D_GNU_SOURCE
@@ -118,7 +118,7 @@ set(LIB_SOURCES
     ${VECTOR_C_FILE}
 )
 
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src-c FILES src-c/main.c ${LIB_SOURCES})
+# source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src-c FILES src-c/main.c ${LIB_SOURCES})
 
 add_library(codebase-memory-mcp-lib OBJECT ${LIB_SOURCES})
 

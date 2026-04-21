@@ -3,6 +3,8 @@
 #if MI_OVERRIDE
 #include <mimalloc.h>
 #endif
+#include "foundation/allocator.h"
+#include "foundation/mem.h"
 
 /* Framework variables */
 int tf_pass_count = 0;
@@ -13,6 +15,7 @@ int main(void) {
 #if MI_OVERRIDE
     mi_version();
 #endif
+    cbm_mem_init(0, 0.5);
     RUN_SUITE(mem_context);
     TEST_SUMMARY();
 }

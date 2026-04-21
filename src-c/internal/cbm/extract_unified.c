@@ -703,6 +703,14 @@ void cbm_extract_unified(CBMExtractCtx *ctx) {
     for (;;) {
         TSNode node = ts_tree_cursor_current_node(&cursor);
 
+        if (depth >= state.parents_capacity) {
+            state.parents_capacity = state.parents_capacity == 0 ? 1024 : state.parents_capacity * 2;
+            state.parents = CBM_REALLOC(state.parents, state.parents_capacity * sizeof(TSNode));
+        }
+        state.parents[depth] = node;
+        TSNode null_node = {0};
+        state.current_parent = depth > 0 ? state.parents[depth - 1] : null_node;
+
         pop_expired_scopes(&state, depth);
         recompute_state(&state, ctx->module_qn);
 
@@ -741,4 +749,7 @@ void cbm_extract_unified(CBMExtractCtx *ctx) {
     }
 
     ts_tree_cursor_delete(&cursor);
+    if (state.parents) {
+        CBM_FREE(state.parents);
+    }
 }

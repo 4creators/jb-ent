@@ -26,10 +26,6 @@ int main(void) {
 #if MI_OVERRIDE
     mi_version();
 #endif
-#ifdef CBM_HARDEN_MEMORY
-    atexit(cbm_mem_print_audit);
-#endif
-
     cbm_mem_init(0, 0.5); /* Initialize memory with defaults: 50% RAM budget */
 
     const char *repo_path = "E:\\src\\ai\\codebase-mcp";

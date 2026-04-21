@@ -358,8 +358,12 @@ int cbm_pipeline_pass_definitions(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t
         }
 
         /* Extract */
+        uint64_t budget = CBM_EXTRACT_BUDGET;
+        if (source_len > CBM_SZ_1K * CBM_SZ_1K) {
+            budget = CBM_EXTRACT_BUDGET_LARGE;
+        }
         CBMFileResult *result =
-            cbm_extract_file(source, source_len, lang, ctx->project_name, rel, CBM_EXTRACT_BUDGET,
+            cbm_extract_file(source, source_len, lang, ctx->project_name, rel, budget,
                              NULL, NULL /* no extra defines or include paths */
             );
         CBM_FREE(source);

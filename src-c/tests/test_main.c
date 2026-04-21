@@ -10,6 +10,8 @@ int tf_skip_count = 0;
 
 #include "test_framework.h"
 #include <sqlite3.h>
+#include "foundation/allocator.h"
+#include "foundation/mem.h"
 #if MI_OVERRIDE
 #include <mimalloc.h>
 #endif
@@ -63,6 +65,7 @@ int main(void) {
 #if MI_OVERRIDE
     mi_version(); /* Force mimalloc override initialization on Windows */
 #endif
+    cbm_mem_init(0, 0.5);
     printf("\n  codebase-memory-mcp  C test suite\n");
 
     /* Foundation */
@@ -163,6 +166,4 @@ int main(void) {
     /* Release sqlite3 internal caches so ASan doesn't report them as leaks */
     sqlite3_shutdown();
     TEST_SUMMARY();
-}
-Y();
 }

@@ -3641,11 +3641,15 @@ recurse:;
         }
     }
 
-    // Recurse into children
-    uint32_t nc = ts_node_child_count(node);
-    for (uint32_t i = 0; i < nc; i++) {
-        c_resolve_calls_in_node(ctx, ts_node_child(node, i));
+    // Recurse into children using cursor to avoid O(N^2) complexity on large arrays
+    TSTreeCursor cursor = ts_tree_cursor_new(node);
+    if (ts_tree_cursor_goto_first_child(&cursor)) {
+        do {
+            c_resolve_calls_in_node(ctx, ts_tree_cursor_current_node(&cursor));
+        } while (ts_tree_cursor_goto_next_sibling(&cursor));
+        ts_tree_cursor_goto_parent(&cursor);
     }
+    ts_tree_cursor_delete(&cursor);
 
     if (push_scope) {
         ctx->current_scope = cbm_scope_pop(ctx->current_scope);

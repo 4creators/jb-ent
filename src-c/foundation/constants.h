@@ -47,6 +47,7 @@ enum {
     CBM_DECIMAL_BASE = 10,
     CBM_HEX_BASE = 16,
     CBM_PERCENT = 100,
+    CBM_MAX_FILE_SIZE_MB = 256,
 };
 
 /* ── Tree-sitter field name helper ───────────────────────────── */

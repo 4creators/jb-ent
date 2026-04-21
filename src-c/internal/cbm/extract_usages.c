@@ -150,7 +150,7 @@ void handle_usages(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec *spec, Wal
     }
 
     // Skip if it's a definition name (left side of assignment, function name)
-    TSNode parent = ts_node_parent(node);
+    TSNode parent = state->current_parent;
     if (!ts_node_is_null(parent)) {
         TSNode name_field = ts_node_child_by_field_name(parent, TS_FIELD("name"));
         if (!ts_node_is_null(name_field) &&

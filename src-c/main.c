@@ -301,9 +301,6 @@ int main(int argc, char **argv) {
     mi_version(); /* Force mimalloc DLL to load before ucrtbase on Windows */
 #endif
     cbm_mem_hook_sqlite();
-#ifdef CBM_HARDEN_MEMORY
-    atexit(cbm_mem_print_audit);
-#endif
     cbm_profile_init(); /* reads CBM_PROFILE env var, gates all prof macros */
     int subcmd = handle_subcommand(argc, argv);
     if (subcmd >= 0) {

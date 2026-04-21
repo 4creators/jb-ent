@@ -107,8 +107,12 @@ static void handle_kustomize(cbm_pipeline_ctx_t *ctx, const char *path, const ch
         int src_len = 0;
         char *source = k8s_read_file(path, &src_len);
         if (source) {
+            uint64_t budget = CBM_EXTRACT_BUDGET;
+            if (src_len > CBM_SZ_1K * CBM_SZ_1K) {
+                budget = CBM_EXTRACT_BUDGET_LARGE;
+            }
             res = cbm_extract_file(source, src_len, CBM_LANG_KUSTOMIZE, ctx->project_name, rel_path,
-                                   CBM_EXTRACT_BUDGET, NULL, NULL);
+                                   budget, NULL, NULL);
             CBM_FREE(source);
             allocated = true;
         }

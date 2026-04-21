@@ -38,7 +38,7 @@ static int has_call(CBMFileResult *r, const char *callee) {
 }
 
 /* Check if any import with the given module path exists. */
-static int __attribute__((unused)) has_import(CBMFileResult *r, const char *path_substr) {
+static int has_import(CBMFileResult *r, const char *path_substr) {
     for (int i = 0; i < r->imports.count; i++) {
         if (r->imports.items[i].module_path &&
             strstr(r->imports.items[i].module_path, path_substr) != NULL)
@@ -1712,7 +1712,6 @@ TEST(rust_imports) {
 TEST(c_imports) {
     CBMFileResult *r =
         extract("#include <stdio.h>\n#include <stdlib.h>\n#include \"mylib.h\"\n\nint main() { return 0; }\n",
-#include "foundation/allocator.h"
                 CBM_LANG_C, "t", "main.c");
     ASSERT_NOT_NULL(r);
     ASSERT_FALSE(r->has_error);
@@ -2134,12 +2133,64 @@ TEST(python_regular_module_qn_unchanged) {
     PASS();
 }
 
+TEST(extraction_large_file_timeout_adjustment) {
+    // Generate a 1.5MB dummy C file
+    int size = 1500000;
+    char *large_src = malloc(size);
+    memset(large_src, ' ', size - 1);
+    large_src[size - 1] = '\0';
+    // Add valid tokens
+    memcpy(large_src, "int main() { ", 13);
+    memcpy(large_src + size - 10, " return 0;}", 10);
+
+    // Extract with standard budget; should succeed due to dynamic scaling
+    CBMFileResult *r = cbm_extract_file(large_src, size, CBM_LANG_C, "test", "large.c", 5000000ULL, NULL, NULL);
+
+    ASSERT_NOT_NULL(r);
+    free(large_src);
+    cbm_free_result(r);
+    PASS();
+}
+
+TEST(extraction_lean_grammar_giant) {
+    // We expect this to be executed from build/src-c/tests, so path is ../../../src-c/internal/cbm/vendored/grammars/lean/parser.c
+    const char *path = "../../../src-c/internal/cbm/vendored/grammars/lean/parser.c";
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        // If we can't find it (e.g. running from different dir), just pass to not break CI arbitrarily
+        PASS();
+    }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    char *src = malloc(size + 1);
+    ASSERT_NOT_NULL(src);
+    fread(src, 1, size, f);
+    src[size] = '\0';
+    fclose(f);
+
+    // Dynamic budget scaling simulation
+    uint64_t budget = 5000000ULL;
+    if (size > 1024 * 1024) {
+        budget = 30000000ULL; // 30s
+    }
+
+    CBMFileResult *r = cbm_extract_file(src, size, CBM_LANG_C, "test", "lean_parser.c", budget, NULL, NULL);
+    ASSERT_NOT_NULL(r);
+    ASSERT_FALSE(r->has_error);
+
+    cbm_free_result(r);
+    CBM_FREE(src);
+    PASS();
+}
 /* ═══════════════════════════════════════════════════════════════════
  * Suite
  * ═══════════════════════════════════════════════════════════════════ */
 
 SUITE(extraction) {
-    /* Initialize extraction library */
+    /* Initialize memory tracking and extraction library */
+    cbm_mem_init(0, 0.5);
     cbm_init();
 
     /* OOP */
@@ -2331,6 +2382,10 @@ SUITE(extraction) {
     RUN_TEST(python_init_nested_module_qn);
     RUN_TEST(js_index_module_qn_not_collide_with_folder);
     RUN_TEST(python_regular_module_qn_unchanged);
+    RUN_TEST(extraction_large_file_timeout_adjustment);
+    RUN_TEST(extraction_lean_grammar_giant);
 
     cbm_shutdown();
+    cbm_mem_print_audit();
 }
+

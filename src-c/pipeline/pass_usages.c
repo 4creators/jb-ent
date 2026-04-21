@@ -33,7 +33,7 @@ static char *read_file(const char *path, int *out_len) {
     (void)fseek(f, 0, SEEK_END);
     long size = ftell(f);
     (void)fseek(f, 0, SEEK_SET);
-    if (size <= 0 || size > (long)CBM_PERCENT * CBM_SZ_1K * CBM_SZ_1K) {
+    if (size <= 0 || size > (long)CBM_MAX_FILE_SIZE_MB * CBM_SZ_1K * CBM_SZ_1K) {
         (void)fclose(f);
         return NULL;
     }
@@ -337,8 +337,12 @@ int cbm_pipeline_pass_usages(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t *fil
                 errors++;
                 continue;
             }
+            uint64_t budget = CBM_EXTRACT_BUDGET;
+            if (source_len > CBM_SZ_1K * CBM_SZ_1K) {
+                budget = CBM_EXTRACT_BUDGET_LARGE;
+            }
             result = cbm_extract_file(source, source_len, files[i].language, ctx->project_name, rel,
-                                      CBM_EXTRACT_BUDGET, NULL, NULL);
+                                      budget, NULL, NULL);
             CBM_FREE(source);
             if (!result) {
                 errors++;

@@ -376,8 +376,12 @@ static CBMFileResult *sem_get_or_extract(cbm_pipeline_ctx_t *ctx, int file_idx,
     if (!source) {
         return NULL;
     }
+    uint64_t budget = CBM_EXTRACT_BUDGET;
+    if (source_len > CBM_SZ_1K * CBM_SZ_1K) {
+        budget = CBM_EXTRACT_BUDGET_LARGE;
+    }
     CBMFileResult *r = cbm_extract_file(source, source_len, fi->language, ctx->project_name,
-                                        fi->rel_path, CBM_EXTRACT_BUDGET, NULL, NULL);
+                                        fi->rel_path, budget, NULL, NULL);
     CBM_FREE(source);
     if (r) {
         *owned = true;

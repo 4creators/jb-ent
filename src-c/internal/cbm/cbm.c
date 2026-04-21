@@ -9,6 +9,7 @@
 #include "foundation/compat.h"
 #include "tree_sitter/api.h" // TSParser, TSNode, TSTree, TSInput, TSLanguage, TSPoint, TSParseOptions, TSParseState
 #include "foundation/constants.h"
+#include "foundation/slab_alloc.h"
 #include <stdint.h> // uint32_t, uint64_t, int64_t
 #include <stdlib.h>
 #include <string.h>
@@ -238,11 +239,11 @@ void cbm_destroy_thread_parser(void) {
         tl_parser_lang = CBM_LANG_COUNT;
     }
 }
-
 void cbm_shutdown(void) {
     // Clean up thread-local parser for the calling thread.
     // Note: other threads' TLS parsers are freed when those threads exit.
     cbm_destroy_thread_parser();
+    cbm_slab_destroy_thread();
     cbm_initialized = 0;
 }
 
@@ -351,18 +352,21 @@ CBMFileResult *cbm_extract_file(const char *source, int source_len, CBMLanguage 
     }
 
     // LSP type-aware call resolution
-    uint64_t lsp_start = now_ns();
-    if (language == CBM_LANG_GO) {
-        cbm_run_go_lsp(a, result, source, source_len, root);
+    // Skip for very large generated files to prevent astronomically slow recursive AST walks and OOM.
+    if (source_len <= 1024 * 1024) {
+        uint64_t lsp_start = now_ns();
+        if (language == CBM_LANG_GO) {
+            cbm_run_go_lsp(a, result, source, source_len, root);
+        }
+        if (language == CBM_LANG_C || language == CBM_LANG_CPP || language == CBM_LANG_CUDA) {
+            cbm_run_c_lsp(a, result, source, source_len, root, language != CBM_LANG_C);
+        }
+        atomic_fetch_add(&total_lsp_ns, now_ns() - lsp_start);
     }
-    if (language == CBM_LANG_C || language == CBM_LANG_CPP || language == CBM_LANG_CUDA) {
-        cbm_run_c_lsp(a, result, source, source_len, root, language != CBM_LANG_C);
-    }
-    atomic_fetch_add(&total_lsp_ns, now_ns() - lsp_start);
 
     // Second pass: preprocess C/C++/CUDA and extract additional macro-hidden calls.
     // Defs keep original-source line numbers; only CALLS are extracted from expanded source.
-    if (language == CBM_LANG_C || language == CBM_LANG_CPP || language == CBM_LANG_CUDA) {
+    if (source_len <= 1024 * 1024 && (language == CBM_LANG_C || language == CBM_LANG_CPP || language == CBM_LANG_CUDA)) {
         uint64_t pp_start = now_ns();
         char *expanded = cbm_preprocess(source, source_len, rel_path, extra_defines, include_paths,
                                         language != CBM_LANG_C);

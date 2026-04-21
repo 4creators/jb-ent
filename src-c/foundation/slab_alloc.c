@@ -53,6 +53,11 @@ typedef struct {
     slab_page_t *pages;         /* linked list of all allocated pages */
     slab_free_node_t *freelist; /* singly-linked free list */
     bool installed;
+    
+    // Fast O(log N) lookup array for slab_owns
+    slab_page_t **page_array;
+    size_t page_count;
+    size_t page_capacity;
 } slab_state_t;
 
 static CBM_TLS slab_state_t tls_slab;
@@ -78,6 +83,32 @@ static bool slab_grow(slab_state_t *s) {
     if (!page) {
         return false;
     }
+    
+    if (s->page_count >= s->page_capacity) {
+        size_t new_cap = s->page_capacity == 0 ? 64 : s->page_capacity * 2;
+        slab_page_t **new_arr = (slab_page_t **)CBM_REALLOC(s->page_array, new_cap * sizeof(slab_page_t *));
+        if (!new_arr) {
+            CBM_FREE(page);
+            return false;
+        }
+        s->page_array = new_arr;
+        s->page_capacity = new_cap;
+    }
+
+    size_t insert_idx = s->page_count;
+    for (size_t i = 0; i < s->page_count; i++) {
+        if ((uintptr_t)page < (uintptr_t)s->page_array[i]) {
+            insert_idx = i;
+            break;
+        }
+    }
+
+    if (insert_idx < s->page_count) {
+        memmove(&s->page_array[insert_idx + 1], &s->page_array[insert_idx], (s->page_count - insert_idx) * sizeof(slab_page_t *));
+    }
+    s->page_array[insert_idx] = page;
+    s->page_count++;
+
     page->next = s->pages;
     s->pages = page;
 
@@ -93,11 +124,20 @@ static bool slab_grow(slab_state_t *s) {
 /* Check if a pointer belongs to any slab page (for realloc/free).
  * Linear scan is bounded: per-file reclaim keeps page count small. */
 static bool slab_owns(const slab_state_t *s, const void *ptr) {
+    if (s->page_count == 0) return false;
     uintptr_t p = (uintptr_t)ptr;
-    for (const slab_page_t *page = s->pages; page; page = page->next) {
-        uintptr_t lo = (uintptr_t)page->data;
+    int left = 0;
+    int right = (int)s->page_count - 1;
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        uintptr_t lo = (uintptr_t)s->page_array[mid]->data;
         if (p >= lo && p < lo + (uintptr_t)SLAB_PAGE_SIZE) {
             return true;
+        }
+        if (p < lo) {
+            right = mid - 1;
+        } else {
+            left = mid + 1;
         }
     }
     return false;
@@ -222,6 +262,12 @@ void cbm_slab_destroy_thread(void) {
     }
     s->pages = NULL;
     s->freelist = NULL;
+    if (s->page_array) {
+        CBM_FREE(s->page_array);
+        s->page_array = NULL;
+    }
+    s->page_count = 0;
+    s->page_capacity = 0;
     s->installed = false;
 }
 
@@ -240,6 +286,12 @@ void cbm_slab_reclaim(void) {
     }
     s->pages = NULL;
     s->freelist = NULL;
+    if (s->page_array) {
+        CBM_FREE(s->page_array);
+        s->page_array = NULL;
+    }
+    s->page_count = 0;
+    s->page_capacity = 0;
     /* NOTE: keep s->installed true — allocator is still active,
      * just with empty pages. Next slab_malloc will call slab_grow. */
 }

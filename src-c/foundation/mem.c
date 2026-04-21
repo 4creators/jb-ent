@@ -231,32 +231,20 @@ typedef struct {
 } alloc_record_t;
 
 static alloc_record_t *g_tracker = NULL;
+static size_t g_tracker_capacity = TRACKER_CAPACITY;
 static atomic_int g_tracker_init_flag = 0;
 static _Atomic int64_t g_audit_bytes = 0;
 
-static void init_tracker_memory(void) {
-    int expected = 0;
-    if (atomic_compare_exchange_strong(&g_tracker_init_flag, &expected, 1)) {
-        size_t bytes = (size_t)TRACKER_CAPACITY * sizeof(alloc_record_t);
-#ifdef _WIN32
-        g_tracker = VirtualAlloc(NULL, bytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-#else
-        g_tracker = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-#endif
-        if (!g_tracker) {
-            fprintf(stderr, "FATAL: Could not allocate 2GB memory tracker table!\n");
-            exit(EXIT_FAILURE);
-        }
-    } else {
-        /* Wait for other thread to finish allocating */
-        while (!g_tracker) {
-#ifdef _WIN32
-            Sleep(1);
-#else
-            usleep(1000);
-#endif
-        }
-    }
+static _Atomic(void*) g_pending_ptr = NULL;
+static _Atomic(size_t) g_pending_size = 0;
+static const char *g_pending_file = NULL;
+static int g_pending_line = 0;
+
+void cbm_set_tracker_memory(void* mem, size_t capacity) {
+    g_tracker_capacity = capacity;
+    /* Barrier to ensure capacity is visible before pointer */
+    atomic_store(&g_tracker_init_flag, 1);
+    g_tracker = (alloc_record_t*)mem;
 }
 
 static inline uint32_t ptr_hash(void *ptr) {
@@ -334,37 +322,85 @@ static void trigger_tracker_abort(const char *reason, void *ptr, const char *fil
     exit(EXIT_FAILURE);
 }
 
-static void tracker_add(void *ptr, size_t size, const char *file, int line) {
-    if (!ptr) return;
-    if (!g_tracker) init_tracker_memory();
-    TRACKER_LOCK();
-    uint32_t idx = ptr_hash(ptr) & TRACKER_MASK;
-    for (int i = 0; i < TRACKER_CAPACITY; i++) {
+static void tracker_add_impl(void *ptr, size_t size, const char *file, int line) {
+    uint32_t idx = ptr_hash(ptr) & (g_tracker_capacity - 1);
+    for (size_t i = 0; i < g_tracker_capacity; i++) {
         void *p = g_tracker[idx].ptr;
         if (p == NULL || p == TOMBSTONE) {
             g_tracker[idx].ptr = ptr;
             g_tracker[idx].size = size;
             g_tracker[idx].file = file;
             g_tracker[idx].line = line;
-            TRACKER_UNLOCK();
             return;
         }
         if (p == ptr) {
-            TRACKER_UNLOCK();
             trigger_tracker_abort("Pointer already tracked", ptr, file, line);
         }
-        idx = (idx + 1) & TRACKER_MASK;
+        idx = (idx + 1) & (g_tracker_capacity - 1);
     }
-    TRACKER_UNLOCK();
     trigger_tracker_abort("Capacity exceeded", ptr, file, line);
+}
+
+static void tracker_add(void *ptr, size_t size, const char *file, int line) {
+    if (!ptr) return;
+    
+    if (!g_tracker) {
+        int expected = 0;
+        if (atomic_compare_exchange_strong(&g_tracker_init_flag, &expected, 1)) {
+            /* We are the very first allocation. Store it in the pending slot.
+             * It will be flushed to the tracker table on the next allocation. */
+            atomic_store(&g_pending_ptr, ptr);
+            atomic_store(&g_pending_size, size);
+            g_pending_file = file;
+            g_pending_line = line;
+            return;
+        } else {
+            /* Initialization is happening on another thread (or we are in a weird re-entrant state). Wait. */
+            while (!g_tracker) {
+#ifdef _WIN32
+                Sleep(1);
+#else
+                sched_yield();
+#endif
+            }
+        }
+    }
+
+    TRACKER_LOCK();
+    
+    void *pending = atomic_exchange(&g_pending_ptr, NULL);
+    if (pending) {
+        tracker_add_impl(pending, atomic_load(&g_pending_size), g_pending_file, g_pending_line);
+    }
+    
+    tracker_add_impl(ptr, size, file, line);
+    TRACKER_UNLOCK();
 }
 
 static void tracker_remove(void *ptr, const char *file, int line) {
     if (!ptr) return;
-    if (!g_tracker) init_tracker_memory();
+    
+    /* Wait if the tracker is still initializing */
+    while (!g_tracker) {
+#ifdef _WIN32
+        Sleep(1);
+#else
+        sched_yield();
+#endif
+    }
+    
     TRACKER_LOCK();
-    uint32_t idx = ptr_hash(ptr) & TRACKER_MASK;
-    for (int i = 0; i < TRACKER_CAPACITY; i++) {
+    
+    /* Check if the pointer being freed is currently sitting in the pending slot */
+    void *pending = atomic_load(&g_pending_ptr);
+    if (pending == ptr) {
+        atomic_store(&g_pending_ptr, NULL);
+        TRACKER_UNLOCK();
+        return;
+    }
+    
+    uint32_t idx = ptr_hash(ptr) & (g_tracker_capacity - 1);
+    for (size_t i = 0; i < g_tracker_capacity; i++) {
         void *p = g_tracker[idx].ptr;
         if (p == ptr) {
             g_tracker[idx].ptr = TOMBSTONE;
@@ -375,7 +411,7 @@ static void tracker_remove(void *ptr, const char *file, int line) {
             TRACKER_UNLOCK();
             trigger_tracker_abort("Untracked pointer freed", ptr, file, line);
         }
-        idx = (idx + 1) & TRACKER_MASK;
+        idx = (idx + 1) & (g_tracker_capacity - 1);
     }
     TRACKER_UNLOCK();
     trigger_tracker_abort("Double free or capacity scanned", ptr, file, line);
@@ -513,9 +549,13 @@ void cbm_mem_print_audit(void) {
     
     int leak_count = 0;
     size_t leaked_bytes = 0;
-    for (int i = 0; i < TRACKER_CAPACITY; i++) {
+    for (size_t i = 0; i < g_tracker_capacity; i++) {
         void *p = g_tracker[i].ptr;
         if (p != NULL && p != TOMBSTONE) {
+            if (p == g_tracker) {
+                leaked -= g_tracker[i].size;
+                continue;
+            }
             fprintf(stderr, "LEAK: %p (%zu bytes) allocated at %s:%d\n", p, g_tracker[i].size, g_tracker[i].file, g_tracker[i].line);
             leaked_bytes += g_tracker[i].size;
             leak_count++;

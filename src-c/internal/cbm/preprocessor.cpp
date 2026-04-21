@@ -1,5 +1,7 @@
 // Unity build: include simplecpp implementation directly since CGo only
 // compiles .cpp files from the immediate package directory, not subdirs.
+#include "foundation/allocator_tracker.h"
+
 #include "vendored/simplecpp/simplecpp.cpp"
 
 #include "preprocessor.h"
@@ -12,7 +14,10 @@
 #include <cstdlib>
 
 extern "C" {
+#include "foundation/allocator.h"
+}
 
+extern "C" {
 char* cbm_preprocess(
     const char* source, int source_len,
     const char* filename,
@@ -52,6 +57,7 @@ char* cbm_preprocess(
 
     try {
         simplecpp::DUI dui;
+        dui.clearIncludeCache = true; // Clear the static cache
         if (extra_defines) {
             for (int i = 0; extra_defines[i]; i++)
                 dui.defines.push_back(extra_defines[i]);
@@ -78,7 +84,7 @@ char* cbm_preprocess(
         // Clean up loaded file data
         simplecpp::cleanup(filedata);
 
-        char* out = (char*)malloc(result.size() + 1);
+        char* out = (char*)CBM_MALLOC(result.size() + 1);
         if (!out) return NULL;
         memcpy(out, result.c_str(), result.size() + 1);
         return out;
@@ -89,7 +95,43 @@ char* cbm_preprocess(
 }
 
 void cbm_preprocess_free(char* expanded) {
-    free(expanded);
+    CBM_FREE(expanded);
 }
 
 } // extern "C"
+
+#include <new>
+
+// Global operator new/delete overrides to ensure simplecpp allocations are tracked
+// by the codebase-memory-mcp memory budget auditor (cbm_malloc_safe).
+void* operator new(std::size_t size) {
+    void* p = CBM_MALLOC(size);
+    if (!p) throw std::bad_alloc();
+    return p;
+}
+
+void* operator new[](std::size_t size) {
+    void* p = CBM_MALLOC(size);
+    if (!p) throw std::bad_alloc();
+    return p;
+}
+
+void operator delete(void* p) noexcept {
+    CBM_FREE(p);
+}
+
+void operator delete[](void* p) noexcept {
+    CBM_FREE(p);
+}
+
+#if __cplusplus >= 201402L || (defined(_MSC_VER) && _MSC_VER >= 1916)
+void operator delete(void* p, std::size_t size) noexcept {
+    (void)size;
+    CBM_FREE(p);
+}
+
+void operator delete[](void* p, std::size_t size) noexcept {
+    (void)size;
+    CBM_FREE(p);
+}
+#endif
