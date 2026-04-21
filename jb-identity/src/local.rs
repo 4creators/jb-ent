@@ -4,7 +4,9 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions, File};
-use std::io::{Read, Write, Seek, SeekFrom};
+use std::io::{Read, Write};
+#[cfg(windows)]
+use std::io::{Seek, SeekFrom};
 use std::path::Path;
 use std::time::{Duration, Instant};
 use std::thread;
@@ -113,26 +115,61 @@ pub fn create_instance_identity(repo_path: &Path, id: &Identity) -> Result<()> {
     let content = serde_json::to_string_pretty(&config)?;
     let project_file = jbe_dir.join("project.json");
     
-    let mut options = OpenOptions::new();
-    options.write(true);
-    options.create_new(true); // Protects against TOCTOU race
-    
     #[cfg(windows)]
-    options.share_mode(0); // Exclusive Lock
-    
-    let mut file = match open_with_timeout(&mut options, &project_file, 2000) {
-        Ok(f) => f,
-        Err(e) => {
-            if e.kind() == std::io::ErrorKind::AlreadyExists {
-                // Another process safely created the file before us. Yield to their identity.
-                return Ok(());
+    {
+        let mut options = OpenOptions::new();
+        options.write(true);
+        options.create_new(true); // Protects against TOCTOU race
+        
+        options.share_mode(0); // Exclusive Lock
+        
+        let mut file = match open_with_timeout(&mut options, &project_file, 2000) {
+            Ok(f) => f,
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::AlreadyExists {
+                    // Another process safely created the file before us. Yield to their identity.
+                    return Ok(());
+                }
+                return Err(anyhow::anyhow!("Failed to lock/create project.json: {}", e));
             }
-            return Err(anyhow::anyhow!("Failed to lock/create project.json: {}", e));
-        }
-    };
+        };
+        
+        file.write_all(content.as_bytes())?;
+        file.sync_all()?;
+    }
     
-    file.write_all(content.as_bytes())?;
-    file.sync_all()?;
+    #[cfg(unix)]
+    {
+        // To prevent TOCTOU on creation, we try to create the final file exclusively.
+        let mut claim_options = OpenOptions::new();
+        claim_options.write(true).create_new(true).mode(0o600);
+        
+        match claim_options.open(&project_file) {
+            Ok(_empty_file) => {
+                // We won the creation race. The file now exists but is empty.
+                // We still use the atomic rename pattern to ensure readers don't see a partial write.
+                let temp_name = format!("project.json.{}.tmp", uuid::Uuid::new_v4());
+                let temp_file = jbe_dir.join(&temp_name);
+                
+                let mut temp_options = OpenOptions::new();
+                temp_options.write(true).create_new(true).mode(0o600);
+                
+                let mut temp_fd = temp_options.open(&temp_file)?;
+                temp_fd.write_all(content.as_bytes())?;
+                temp_fd.sync_all()?;
+                
+                // Atomically replace the empty claimed file with the fully written temp file
+                fs::rename(&temp_file, &project_file)?;
+            }
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::AlreadyExists {
+                    // Another process safely created the file before us. Yield to their identity.
+                    return Ok(());
+                }
+                return Err(anyhow::anyhow!("Failed to create project.json: {}", e));
+            }
+        }
+    }
     
     Ok(())
 }
@@ -147,40 +184,73 @@ pub fn update_instance_identity(repo_path: &Path, id: &Identity) -> Result<()> {
         Identity::Uuid(v) => ("uuid", v),
     };
     
-    let mut options = OpenOptions::new();
-    options.read(true).write(true);
-    
     #[cfg(windows)]
-    options.share_mode(0); // Exclusive Lock
-    
-    let mut file = match open_with_timeout(&mut options, &project_file, 2000) {
-        Ok(f) => f,
-        Err(e) => {
-            return Err(anyhow::anyhow!("Failed to lock/open project.json for update: {}", e));
+    {
+        let mut options = OpenOptions::new();
+        options.read(true).write(true);
+        
+        options.share_mode(0); // Exclusive Lock
+        
+        let mut file = match open_with_timeout(&mut options, &project_file, 2000) {
+            Ok(f) => f,
+            Err(e) => {
+                return Err(anyhow::anyhow!("Failed to lock/open project.json for update: {}", e));
+            }
+        };
+        
+        let mut content = String::new();
+        file.read_to_string(&mut content)?;
+        
+        let mut config: serde_json::Value = serde_json::from_str(&content)?;
+        
+        if let Some(obj) = config.as_object_mut() {
+            obj.insert("id_type".to_string(), serde_json::Value::String(id_type.to_string()));
+            obj.insert("id".to_string(), serde_json::Value::String(id_val.to_string()));
+        } else {
+            return Err(anyhow::anyhow!("project.json is not a valid JSON object"));
         }
-    };
-    
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    
-    let mut config: serde_json::Value = serde_json::from_str(&content)?;
-    
-    if let Some(obj) = config.as_object_mut() {
-        obj.insert("id_type".to_string(), serde_json::Value::String(id_type.to_string()));
-        obj.insert("id".to_string(), serde_json::Value::String(id_val.to_string()));
-    } else {
-        return Err(anyhow::anyhow!("project.json is not a valid JSON object"));
+        
+        let new_content = serde_json::to_string_pretty(&config)?;
+        
+        file.seek(SeekFrom::Start(0))?;
+        file.write_all(new_content.as_bytes())?;
+        
+        let current_pos = file.stream_position()?;
+        file.set_len(current_pos)?;
+        
+        file.sync_all()?;
     }
     
-    let new_content = serde_json::to_string_pretty(&config)?;
-    
-    file.seek(SeekFrom::Start(0))?;
-    file.write_all(new_content.as_bytes())?;
-    
-    let current_pos = file.stream_position()?;
-    file.set_len(current_pos)?;
-    
-    file.sync_all()?;
+    #[cfg(unix)]
+    {
+        let mut content = String::new();
+        let mut file = OpenOptions::new().read(true).open(&project_file)?;
+        file.read_to_string(&mut content)?;
+        
+        let mut config: serde_json::Value = serde_json::from_str(&content)?;
+        
+        if let Some(obj) = config.as_object_mut() {
+            obj.insert("id_type".to_string(), serde_json::Value::String(id_type.to_string()));
+            obj.insert("id".to_string(), serde_json::Value::String(id_val.to_string()));
+        } else {
+            return Err(anyhow::anyhow!("project.json is not a valid JSON object"));
+        }
+        
+        let new_content = serde_json::to_string_pretty(&config)?;
+        
+        let temp_name = format!("project.json.{}.tmp", uuid::Uuid::new_v4());
+        let temp_file = jbe_dir.join(&temp_name);
+        
+        let mut temp_options = OpenOptions::new();
+        temp_options.write(true).create_new(true).mode(0o600);
+        
+        let mut temp_fd = temp_options.open(&temp_file)?;
+        
+        temp_fd.write_all(new_content.as_bytes())?;
+        temp_fd.sync_all()?;
+        
+        fs::rename(&temp_file, &project_file)?;
+    }
     
     Ok(())
 }

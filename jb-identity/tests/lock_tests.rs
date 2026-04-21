@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright © 2026 Jacek Błaszczyński
 
-use jb_identity::local::{load_instance_identity, create_instance_identity, update_instance_identity};
+use jb_identity::local::{load_instance_identity, create_instance_identity};
+#[cfg(windows)]
+use jb_identity::local::update_instance_identity;
 use jb_identity::Identity;
-use std::fs::{self, OpenOptions};
+use std::fs;
+#[cfg(windows)]
+use std::fs::OpenOptions;
+#[cfg(windows)]
+use std::thread;
 use tempfile::tempdir;
 
 #[cfg(windows)]
@@ -31,6 +37,51 @@ fn test_save_exclusive_lock_prevents_overwrite() {
 }
 
 #[test]
+#[cfg(windows)]
+fn test_load_waits_for_exclusive_write_lock_to_release() {
+    let dir = tempdir().unwrap();
+    let repo_path = dir.path().to_path_buf();
+    
+    let jbe_dir = repo_path.join(".jbe");
+    fs::create_dir_all(&jbe_dir).unwrap();
+    let project_file = jbe_dir.join("project.json");
+    
+    // Write valid initial config
+    fs::write(&project_file, r#"{"id_type": "uuid", "id": "11111111-1111-1111-1111-111111111111"}"#).unwrap();
+    
+    // Simulate Process A holding an EXCLUSIVE write lock on the file
+    let mut options = OpenOptions::new();
+    options.read(true).write(true);
+    
+    options.share_mode(0); // 0 = No sharing allowed (Exclusive)
+    
+    let locked_file = options.open(&project_file).unwrap();
+    
+    // Spawn a thread to release the lock after a short delay
+    thread::spawn(move || {
+        thread::sleep(std::time::Duration::from_millis(500));
+        // Lock is released when `locked_file` is dropped here
+        drop(locked_file);
+    });
+    
+    let start_time = std::time::Instant::now();
+    
+    // Process B tries to read the file. It should block and wait for Process A to release the lock.
+    let result = load_instance_identity(&repo_path);
+    
+    let elapsed = start_time.elapsed();
+    
+    // It should succeed because the lock was released within the 2000ms timeout
+    assert!(result.is_ok());
+    let id = result.unwrap().unwrap();
+    assert_eq!(id, Identity::Uuid("11111111-1111-1111-1111-111111111111".to_string()));
+    
+    // The load should have taken at least 500ms (the delay before the lock was released)
+    assert!(elapsed.as_millis() >= 450, "Did not wait for lock release, elapsed: {}ms", elapsed.as_millis());
+}
+
+#[test]
+#[cfg(windows)]
 fn test_load_blocked_by_exclusive_write_lock_timeout() {
     let dir = tempdir().unwrap();
     let repo_path = dir.path().to_path_buf();
@@ -39,19 +90,20 @@ fn test_load_blocked_by_exclusive_write_lock_timeout() {
     fs::create_dir_all(&jbe_dir).unwrap();
     let project_file = jbe_dir.join("project.json");
     
+    // Write valid initial config
+    fs::write(&project_file, r#"{"id_type": "uuid", "id": "11111111-1111-1111-1111-111111111111"}"#).unwrap();
+    
     // Simulate Process A holding an EXCLUSIVE write lock on the file
     let mut options = OpenOptions::new();
-    options.write(true).create(true);
+    options.read(true).write(true);
     
-    #[cfg(windows)]
     options.share_mode(0); // 0 = No sharing allowed (Exclusive)
     
     let _locked_file = options.open(&project_file).unwrap();
     
     let start_time = std::time::Instant::now();
     
-    // Simulate Process B trying to read the file while Process A holds the exclusive lock.
-    // This should fail with a sharing violation, which our code maps to an anyhow error after the timeout.
+    // Process B tries to read the file. It should block and timeout.
     let result = load_instance_identity(&repo_path);
     
     let elapsed = start_time.elapsed();
@@ -65,6 +117,7 @@ fn test_load_blocked_by_exclusive_write_lock_timeout() {
 }
 
 #[test]
+#[cfg(windows)]
 fn test_update_blocked_by_exclusive_write_lock_timeout() {
     let dir = tempdir().unwrap();
     let repo_path = dir.path().to_path_buf();
@@ -80,7 +133,6 @@ fn test_update_blocked_by_exclusive_write_lock_timeout() {
     let mut options = OpenOptions::new();
     options.read(true).write(true);
     
-    #[cfg(windows)]
     options.share_mode(0); // 0 = No sharing allowed (Exclusive)
     
     let _locked_file = options.open(&project_file).unwrap();

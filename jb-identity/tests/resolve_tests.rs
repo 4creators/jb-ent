@@ -4,7 +4,6 @@
 use git2::Repository;
 use jb_identity::{resolve, Identity, ALGORITHM_VERSION};
 use std::fs;
-use std::path::Path;
 use std::process::Command;
 use tempfile::tempdir;
 
@@ -97,16 +96,14 @@ fn test_resolve_upgrade_from_shallow_to_full() {
 #[test]
 fn test_real_world_full_clone_resolution() {
     let dir = tempdir().unwrap();
-    let source_repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-    assert!(source_repo.join(".git").exists(), "Source must be a git repository");
-    let source_repo_str = source_repo.to_str().unwrap();
+    let source_repo_url = "https://github.com/rust-lang/hashbrown.git";
 
     let full_clone_path = dir.path().join("full_clone");
     let status = Command::new("git")
-        .args(["clone", source_repo_str, full_clone_path.to_str().unwrap()])
+        .args(["clone", source_repo_url, full_clone_path.to_str().unwrap()])
         .status()
         .unwrap();
-    assert!(status.success(), "Failed to create full clone");
+    assert!(status.success(), "Failed to create full clone from {}", source_repo_url);
     
     let id_full = resolve(&full_clone_path).unwrap();
     assert!(matches!(id_full, Identity::Git(_)));
@@ -115,16 +112,14 @@ fn test_real_world_full_clone_resolution() {
 #[test]
 fn test_real_world_shallow_clone_resolution() {
     let dir = tempdir().unwrap();
-    let source_repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-    assert!(source_repo.join(".git").exists(), "Source must be a git repository");
-    let source_repo_str = source_repo.to_str().unwrap();
+    let source_repo_url = "https://github.com/rust-lang/hashbrown.git";
 
     let shallow_clone_path = dir.path().join("shallow_clone");
     let status = Command::new("git")
-        .args(["clone", "--depth", "1", "--no-local", source_repo_str, shallow_clone_path.to_str().unwrap()])
+        .args(["clone", "--depth", "1", source_repo_url, shallow_clone_path.to_str().unwrap()])
         .status()
         .unwrap();
-    assert!(status.success(), "Failed to create shallow clone");
+    assert!(status.success(), "Failed to create shallow clone from {}", source_repo_url);
 
     let id_shallow = resolve(&shallow_clone_path).unwrap();
     assert!(matches!(id_shallow, Identity::GitShallow(_)));
@@ -136,17 +131,15 @@ fn test_real_world_shallow_clone_resolution() {
 #[test]
 fn test_real_world_unshallow_upgrade_resolution() {
     let dir = tempdir().unwrap();
-    let source_repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-    assert!(source_repo.join(".git").exists(), "Source must be a git repository");
-    let source_repo_str = source_repo.to_str().unwrap();
+    let source_repo_url = "https://github.com/rust-lang/hashbrown.git";
 
     // First create a shallow clone and resolve it
     let shallow_clone_path = dir.path().join("shallow_clone");
     let status = Command::new("git")
-        .args(["clone", "--depth", "1", "--no-local", source_repo_str, shallow_clone_path.to_str().unwrap()])
+        .args(["clone", "--depth", "1", source_repo_url, shallow_clone_path.to_str().unwrap()])
         .status()
         .unwrap();
-    assert!(status.success(), "Failed to create shallow clone");
+    assert!(status.success(), "Failed to create shallow clone from {}", source_repo_url);
 
     let _id_shallow = resolve(&shallow_clone_path).unwrap();
 
