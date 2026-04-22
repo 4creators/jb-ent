@@ -140,7 +140,11 @@ fn test_update_blocked_by_exclusive_write_lock_timeout() {
     let start_time = std::time::Instant::now();
     
     // Simulate Process B trying to update the file while Process A holds the exclusive lock.
-    let id_update = Identity::Git("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string());
+    let id_update = Identity::Git { 
+        hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
+        branch: "main".to_string(),
+        local_roots: Vec::new()
+    };
     let result = update_instance_identity(&repo_path, &id_update);
     
     let elapsed = start_time.elapsed();

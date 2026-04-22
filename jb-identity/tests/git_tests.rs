@@ -26,8 +26,8 @@ fn test_deep_root_discovery_single_history() {
     let first_oid = repo.commit(Some("HEAD"), &sig, &sig, "initial", &tree, &[]).unwrap();
     
     // Discovery should find the first OID
-    let resolved = deep_root_discovery(dir.path()).unwrap();
-    assert_eq!(resolved, Some(first_oid.to_string()));
+    let resolved = deep_root_discovery(dir.path()).unwrap().unwrap();
+    assert_eq!(resolved.0, first_oid.to_string());
 }
 
 #[test]
@@ -51,5 +51,5 @@ fn test_deep_root_discovery_multiple_roots() {
     
     // Discovery should pick root1_oid (older)
     let resolved = deep_root_discovery(dir.path()).unwrap();
-    assert_eq!(resolved, Some(root1_oid.to_string()));
+    assert_eq!(resolved, Some((root1_oid.to_string(), "refs/heads/branch-1".to_string())));
 }

@@ -44,7 +44,11 @@ fn test_identity_upgrade_flow_persistence() {
     create_instance_identity(dir.path(), &id_shallow).unwrap();
     
     // 2. Upgrade to universal (Full Git history becomes available)
-    let id_universal = Identity::Git("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string());
+    let id_universal = Identity::Git { 
+        hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
+        branch: "main".to_string(),
+        local_roots: Vec::new()
+    };
     update_instance_identity(dir.path(), &id_universal).unwrap();
     
     let loaded = load_instance_identity(dir.path()).unwrap().unwrap();
