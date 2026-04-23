@@ -1,0 +1,25 @@
+[package]
+name = "jb-registry"
+version = "0.1.0"
+edition = "2024"
+authors = ["Jacek Błaszczyński <jacek.blaszczynski@outlook.com>"]
+license = "AGPL-3.0-only"
+description = "Global project registry and multi-environment synchronization"
+
+[dependencies]
+jb-identity = { path = "../jb-identity" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+rand = { version = "0.10.1", features = ["thread_rng", "std_rng"] }
+anyhow = "1.0"
+base64 = "0.22.1"
+rand_core = "0.10.1"
+thiserror = "2.0.18"
+windows-sys = { version = "0.61.2", features = ["Win32_Security_Credentials", "Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Memory"] }
+pkcs8 = { version = "0.10.2", features = ["pem"] }
+ml-dsa = "0.1.0-rc.8"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+flate2 = "1.0.35"
