@@ -110,9 +110,19 @@ if(WIN32)
     endif()
 endif()
 
+add_executable(run_test_openssl_version test_openssl_version.c)
+target_link_libraries(run_test_openssl_version PRIVATE OpenSSL::Crypto)
+
 add_executable(run_roundtrip_proof run_roundtrip_proof.c)
 target_include_directories(run_roundtrip_proof PRIVATE ../src ../vendored/tre)
 target_link_libraries(run_roundtrip_proof PRIVATE codebase-memory-mcp-lib)
+
+add_executable(test_openssl_version test_openssl_version.c)
+target_link_libraries(test_openssl_version PRIVATE OpenSSL::Crypto)
+
+add_executable(test_mldsa_full test_mldsa_full.c)
+target_include_directories(test_mldsa_full PRIVATE ../src)
+target_link_libraries(test_mldsa_full PRIVATE codebase-memory-mcp-lib OpenSSL::Crypto)
 if(NOT CBM_ENABLE_ASAN)
     target_link_libraries(run_roundtrip_proof PRIVATE ${MIMALLOC_LIB})
 endif()

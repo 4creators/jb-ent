@@ -96,6 +96,7 @@ All C dependencies are vendored in `vendored/` — zero system library dependenc
 | yyjson | MIT | [ibireme/yyjson](https://github.com/ibireme/yyjson) |
 | xxHash | BSD-2-Clause | [Cyan4973/xxHash](https://github.com/Cyan4973/xxHash) |
 | TRE | BSD-2-Clause | [laurikari/tre](https://github.com/laurikari/tre) |
+| OpenSSL | Apache-2.0 | [openssl/openssl](https://github.com/openssl/openssl) |
 
 ## Notes
 

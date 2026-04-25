@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright © 2026 Jacek Błaszczyński
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use jb_ent::cli::{CallCommands, Cli, Commands};
 
 #[test]
 fn test_cli_debug_assert() {
-    use clap::CommandFactory;
     Cli::command().debug_assert();
 }
 

@@ -2,9 +2,9 @@
 // Copyright © 2026 Jacek Błaszczyński
 
 use chrono::{DateTime, Utc};
+use jb_identity::local::LocalRoot;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
-use jb_identity::local::LocalRoot;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum EnvStatus {
@@ -17,7 +17,7 @@ pub struct Environment {
     pub status: EnvStatus,
     pub last_seen: DateTime<Utc>,
     /// Base64 encoded ML-DSA-44 public key for verifying payloads from this environment
-    pub public_key: String, 
+    pub public_key: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

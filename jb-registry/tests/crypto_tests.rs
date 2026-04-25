@@ -1,173 +1,254 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright © 2026 Jacek Błaszczyński
 
-use jb_registry::crypto::{
-    get_keypair, save_keypair, export_keypair, import_keypair, 
-    sign_payload, verify_signature, MlDsaProvider, CryptoProvider
-};
-use jb_registry::schema::{GlobalRegistry, JwsEnvelope};
-use tempfile::tempdir;
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use std::io::{Read, Write};
-
-#[cfg(windows)]
-use jb_registry::win_storage::{win_save_key_ncrypt, win_get_key_ncrypt, win_delete_key_ncrypt};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+use jb_registry::crypto::{CryptoProvider, OpenSslProvider};
 
 #[test]
-fn test_generate_keypair() {
-    let (public_key_b64, private_key_b64) = MlDsaProvider::generate_keypair().expect("Failed to generate keypair");
-    assert!(!public_key_b64.is_empty());
-    assert!(!private_key_b64.is_empty());
+fn test_openssl_pqc_signature_validates_correct_payload() {
+    let provider = OpenSslProvider::new("ML-DSA-44");
+
+    let (pub_b64, priv_b64) = provider
+        .generate_keypair()
+        .expect("Failed to generate keypair");
+
+    let payload = b"critical project metadata payload";
+    let signature = provider.sign(payload, &priv_b64).expect("Failed to sign");
+
+    let is_valid = provider
+        .verify(payload, &signature, &pub_b64)
+        .expect("Failed to verify");
+
+    assert!(is_valid, "Signature should be valid");
 }
 
 #[test]
-fn test_save_and_get_keypair() {
-    let dir = tempdir().unwrap();
-    let env_id = "test_env_save_get";
-    let fallback_dir = dir.path().join("keys");
+fn test_openssl_pqc_signature_rejects_tampered_payload() {
+    let provider = OpenSslProvider::new("ML-DSA-44");
 
-    // 1. Generate new keypair
-    let (expected_pub, expected_priv) = MlDsaProvider::generate_keypair().unwrap();
+    let (pub_b64, priv_b64) = provider
+        .generate_keypair()
+        .expect("Failed to generate keypair");
 
-    // Check if keyring is available in this environment
-    #[cfg(windows)]
-    let keyring_available = true; // win_cred is always available on Windows
-    #[cfg(not(windows))]
-    let keyring_available = Entry::new(&format!("jb-registry-private-{}", env_id), "ml-dsa-key").is_ok();
+    let payload = b"critical project metadata payload";
+    let signature = provider.sign(payload, &priv_b64).expect("Failed to sign");
 
-    if keyring_available {
-        // Ensure clean state
-        #[cfg(windows)]
-        let _ = jb_registry::win_storage::win_delete_key_ncrypt(&format!("jb-registry-env-{}", env_id));
-        #[cfg(not(windows))]
-        if let Ok(entry) = Entry::new(&format!("jb-registry-private-{}", env_id), "ml-dsa-key") {
-            let _ = entry.delete_credential();
-        }
+    let is_valid = provider
+        .verify(b"tampered payload", &signature, &pub_b64)
+        .expect("Verification failed");
 
-        // 2. Save it. Should go to keyring.
-        save_keypair::<MlDsaProvider>(env_id, &fallback_dir, &expected_priv).expect("Failed to save keypair");
+    assert!(!is_valid, "Signature should be invalid for tampered data");
+}
 
-        // If the keyring is available, the fallback directory MUST NOT exist.
-        assert!(!fallback_dir.exists(), "File fallback used even though keyring is available!");
+#[test]
+fn test_openssl_seed_derivation_deterministic_private_key() {
+    let provider = OpenSslProvider::new("ML-DSA-44");
+    let seed = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; // 32 bytes of '0' in base64
 
-        // 3. Get it back via API
-        let (retrieved_pub, retrieved_priv) = get_keypair::<MlDsaProvider>(env_id, &fallback_dir).expect("Failed get_keypair");
+    let (_, priv1) = provider
+        .derive_keypair(seed)
+        .expect("First derivation failed");
 
-        assert_eq!(retrieved_priv, expected_priv);
-        assert_eq!(retrieved_pub, expected_pub);
+    let (_, priv2) = provider
+        .derive_keypair(seed)
+        .expect("Second derivation failed");
 
-        // Cleanup
-        #[cfg(windows)]
-        let _ = jb_registry::win_storage::win_delete_key_ncrypt(&format!("jb-registry-env-{}", env_id));
-        #[cfg(not(windows))]
-        if let Ok(entry) = Entry::new(&format!("jb-registry-private-{}", env_id), "ml-dsa-key") {
-            let _ = entry.delete_credential();
-        }
-    } else {
-        // Testing file fallback path
-        save_keypair::<MlDsaProvider>(env_id, &fallback_dir, &expected_priv).expect("Failed save to file fallback");
-        assert!(fallback_dir.exists(), "Fallback directory not created!");
-        
-        let (retrieved_pub, retrieved_priv) = get_keypair::<MlDsaProvider>(env_id, &fallback_dir).expect("Failed get from file");
-        assert_eq!(retrieved_priv, expected_priv);
-        assert_eq!(retrieved_pub, expected_pub);
+    assert_eq!(priv1, priv2, "Private keys from same seed must match");
+}
+
+#[test]
+fn test_openssl_seed_derivation_deterministic_public_key() {
+    let provider = OpenSslProvider::new("ML-DSA-44");
+    let seed = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; // 32 bytes of '0' in base64
+
+    let (pub1, _) = provider
+        .derive_keypair(seed)
+        .expect("First derivation failed");
+
+    let (pub2, _) = provider
+        .derive_keypair(seed)
+        .expect("Second derivation failed");
+
+    assert_eq!(pub1, pub2, "Public keys from same seed must match");
+}
+
+#[test]
+fn test_openssl_aead_encryption_roundtrip() {
+    let provider = OpenSslProvider::new("ML-DSA-44");
+    let key = b"0123456789abcdef0123456789abcdef"; // 32 bytes
+    let data = b"sensitive cross-platform registry data";
+
+    let encrypted = provider.encrypt(data, key).expect("Encryption failed");
+
+    assert!(encrypted.len() > data.len()); // Should include IV and Tag
+
+    let decrypted = provider
+        .decrypt(&encrypted, key)
+        .expect("Decryption failed");
+
+    assert_eq!(decrypted, data, "Decrypted data must match original");
+}
+
+#[test]
+fn test_openssl_provider_respects_algorithm_polymorphism() {
+    let provider = OpenSslProvider::new("ML-DSA-65");
+    assert_eq!(
+        provider.algorithm_name(),
+        "ML-DSA-65",
+        "Algorithm name must match initialized value"
+    );
+}
+
+#[test]
+fn test_openssl_aead_encryption_various_bad_key_lengths() {
+    let provider = OpenSslProvider::new("ML-DSA-44");
+    let data = b"sensitive data";
+
+    // Exhaustively try invalid AES-256-GCM lengths (0 through 31, and 33)
+    for len in (0..32).chain(std::iter::once(33)) {
+        let bad_key = vec![0u8; len];
+        let result = provider.encrypt(data, &bad_key);
+        assert!(
+            result.is_err(),
+            "Encryption with key length {} should return Err, not panic",
+            len
+        );
     }
 }
 
-#[cfg(windows)]
 #[test]
-fn test_win_storage_ncrypt_direct_access() {
-    let container = "jb-ent-direct-ncrypt-test";
-    let (_, secret_b64) = MlDsaProvider::generate_keypair().unwrap();
-    
-    let _ = win_delete_key_ncrypt(container);
-    win_save_key_ncrypt(container, &secret_b64).expect("win_save_key_ncrypt failed");
-    let retrieved = win_get_key_ncrypt(container).expect("win_get_key_ncrypt failed");
-    assert_eq!(retrieved, secret_b64);
-    win_delete_key_ncrypt(container).expect("win_delete_key_ncrypt failed");
+fn test_openssl_aead_decryption_various_bad_key_lengths() {
+    let provider = OpenSslProvider::new("ML-DSA-44");
+    let encrypted_data = vec![0u8; 40]; // Dummy data length > 28
+
+    // Exhaustively try invalid AES-256-GCM lengths (0 through 31, and 33)
+    for len in (0..32).chain(std::iter::once(33)) {
+        let bad_key = vec![0u8; len];
+        let result = provider.decrypt(&encrypted_data, &bad_key);
+        assert!(
+            result.is_err(),
+            "Decryption with key length {} should return Err, not panic",
+            len
+        );
+    }
+}
+use jb_registry::error::RegistryError;
+use jb_registry::storage::StorageProvider;
+use jb_registry::storage::error::StorageError;
+
+#[test]
+fn test_openssl_seed_derivation_cleans_up_on_error() {
+    let provider = OpenSslProvider::new("ML-DSA-44");
+
+    // We use a highly specific pattern to avoid false positives when scanning uninitialized memory.
+    // Length is 31 bytes to trigger a failure in ML-DSA-44 seed creation.
+    let secret = b"VERY_SECRET_SEED_DO_NOT_LEAK_IT";
+    let bad_seed = STANDARD.encode(secret);
+
+    let mut leak_detected = false;
+
+    // Try multiple times to increase the chance that the allocator reuses the exact same block
+    for _ in 0..100 {
+        let result = provider.derive_keypair(&bad_seed);
+        assert!(
+            result.is_err(),
+            "Derivation should fail for invalid seed length"
+        );
+
+        // Immediately allocate to grab the freed memory block from the same thread's cache
+        let mut probe = Vec::<u8>::with_capacity(31);
+        let ptr = probe.as_mut_ptr();
+
+        unsafe {
+            // Read the uninitialized memory to check if our secret was left behind
+            let mut matches = 0;
+            for i in 0..31 {
+                if ptr.add(i).read_volatile() == secret[i] {
+                    matches += 1;
+                }
+            }
+            if matches == 31 {
+                leak_detected = true;
+                break;
+            }
+        }
+    }
+
+    assert!(
+        !leak_detected,
+        "SECURITY REGRESSION: Sensitive seed material was found un-zeroized in memory after an error!"
+    );
+}
+
+struct MockStorage;
+
+impl StorageProvider for MockStorage {
+    fn load_encrypted(
+        &self,
+        _env_id: &str,
+        _encryption_key: &[u8],
+    ) -> std::result::Result<Vec<u8>, StorageError> {
+        Err(StorageError::KeyNotFound)
+    }
+
+    fn save_encrypted(
+        &self,
+        _env_id: &str,
+        _data: &[u8],
+        _encryption_key: &[u8],
+    ) -> std::result::Result<(), StorageError> {
+        Ok(())
+    }
 }
 
 #[test]
-fn test_export_keypair_format_verification() {
-    let dir = tempdir().unwrap();
-    let env_id = "test_env_export_format";
-    let fallback_dir = dir.path().join("keys");
+fn test_get_keypair_propagates_key_not_found_error() {
+    let storage = MockStorage;
+    let dummy_key = [0u8; 32];
 
-    let (_, expected_priv) = MlDsaProvider::generate_keypair().unwrap();
-    save_keypair::<MlDsaProvider>(env_id, &fallback_dir, &expected_priv).unwrap();
+    let result = jb_registry::crypto::get_keypair("test_env", &storage, &dummy_key);
 
-    let exported_pem = export_keypair::<MlDsaProvider>(env_id, &fallback_dir).expect("Failed export");
-    assert!(exported_pem.starts_with("-----BEGIN ML-DSA-44 SEED-----\n"));
-    assert!(exported_pem.ends_with("-----END ML-DSA-44 SEED-----\n"));
-    
-    let inner_b64 = exported_pem
-        .replace("-----BEGIN ML-DSA-44 SEED-----\n", "")
-        .replace("\n-----END ML-DSA-44 SEED-----\n", "");
-    assert_eq!(inner_b64, expected_priv);
+    match result {
+        Err(RegistryError::KeyNotFound) => {} // Expected success
+        Err(e) => panic!("Expected KeyNotFound error, got: {:?}", e),
+        Ok(_) => panic!("Expected error, but got Ok"),
+    }
 }
 
 #[test]
-fn test_import_keypair_cross_environment() {
-    let dir = tempdir().unwrap();
-    let env_id_target = "test_env_import_cross";
-    let fallback_dir = dir.path().join("keys");
+fn test_openssl_sign_cleans_up_on_error() {
+    let provider = OpenSslProvider::new("ML-DSA-44");
 
-    let (_, raw_priv) = MlDsaProvider::generate_keypair().unwrap();
-    let simulated_wire_pem = format!("-----BEGIN ML-DSA-44 SEED-----\n{}\n-----END ML-DSA-44 SEED-----\n", raw_priv);
+    let secret = b"VERY_SECRET_SEED_DO_NOT_LEAK_IT";
+    let bad_seed = STANDARD.encode(secret);
+    let payload = b"dummy payload";
 
-    import_keypair::<MlDsaProvider>(env_id_target, &fallback_dir, &simulated_wire_pem).expect("Failed import");
-    let (_, imported_priv) = get_keypair::<MlDsaProvider>(env_id_target, &fallback_dir).expect("Failed retrieve imported");
-    assert_eq!(imported_priv, raw_priv);
-}
+    let mut leak_detected = false;
 
-#[test]
-fn test_sign_compress_transmit_decompress_verify() {
-    let (public_key_b64, private_key_b64) = MlDsaProvider::generate_keypair().unwrap();
-    let registry = GlobalRegistry { local_environment_id: "test_env_network".to_string(), ..Default::default() };
-    
-    let signed_payload = sign_payload::<MlDsaProvider, _>("test_env_network", &registry, &private_key_b64).expect("Failed sign");
-    let serialized_envelope = serde_json::to_string(&signed_payload).unwrap();
-    
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(serialized_envelope.as_bytes()).unwrap();
-    let compressed_bytes = encoder.finish().unwrap();
-    
-    let mut decoder = GzDecoder::new(&compressed_bytes[..]);
-    let mut decompressed_string = String::new();
-    decoder.read_to_string(&mut decompressed_string).unwrap();
-    
-    let received_envelope: JwsEnvelope = serde_json::from_str(&decompressed_string).unwrap();
-    let is_valid = verify_signature::<MlDsaProvider>(&received_envelope, &public_key_b64).expect("Failed verify");
-    assert!(is_valid);
-}
+    for _ in 0..100 {
+        let result = provider.sign(payload, &bad_seed);
+        assert!(result.is_err(), "Sign should fail for invalid seed length");
 
-#[test]
-fn test_sign_and_verify_payload() {
-    let (public_key_b64, private_key_b64) = MlDsaProvider::generate_keypair().unwrap();
-    let registry = GlobalRegistry { local_environment_id: "test_env".to_string(), ..Default::default() };
-    let signed_payload = sign_payload::<MlDsaProvider, _>("test_env", &registry, &private_key_b64).expect("Failed sign");
-    let is_valid = verify_signature::<MlDsaProvider>(&signed_payload, &public_key_b64).expect("Failed verify");
-    assert!(is_valid);
-}
+        let mut probe = Vec::<u8>::with_capacity(31);
+        let ptr = probe.as_mut_ptr();
 
-#[test]
-fn test_verify_invalid_signature_tampered_payload() {
-    let (public_key_b64, private_key_b64) = MlDsaProvider::generate_keypair().unwrap();
-    let registry = GlobalRegistry::default();
-    let mut signed_payload = sign_payload::<MlDsaProvider, _>("test_env", &registry, &private_key_b64).unwrap();
-    signed_payload.payload = "tampered_data".to_string();
-    let is_valid = verify_signature::<MlDsaProvider>(&signed_payload, &public_key_b64).unwrap();
-    assert!(!is_valid);
-}
+        unsafe {
+            let mut matches = 0;
+            for i in 0..31 {
+                if ptr.add(i).read_volatile() == secret[i] {
+                    matches += 1;
+                }
+            }
+            if matches == 31 {
+                leak_detected = true;
+                break;
+            }
+        }
+    }
 
-#[test]
-fn test_verify_invalid_signature_wrong_key() {
-    let (_, private_key_b64) = MlDsaProvider::generate_keypair().unwrap();
-    let (wrong_public_key_b64, _) = MlDsaProvider::generate_keypair().unwrap();
-    let registry = GlobalRegistry::default();
-    let signed_payload = sign_payload::<MlDsaProvider, _>("test_env", &registry, &private_key_b64).unwrap();
-    let is_valid = verify_signature::<MlDsaProvider>(&signed_payload, &wrong_public_key_b64).unwrap();
-    assert!(!is_valid);
+    assert!(
+        !leak_detected,
+        "SECURITY REGRESSION: Sensitive seed material was found un-zeroized in memory after a sign error!"
+    );
 }

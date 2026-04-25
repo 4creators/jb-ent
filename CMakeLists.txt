@@ -27,6 +27,7 @@ add_definitions(
     -D_DEFAULT_SOURCE 
     -D_GNU_SOURCE
     -DMG_ENABLE_LOG=0
+    -DMG_TLS=2
     -DHAVE_LIBGIT2=1
     -DMI_OVERRIDE=${MI_OVERRIDE_VAL}
     -DCBM_ENABLE_OPTIMIZED=1
@@ -43,6 +44,7 @@ find_package(xxHash CONFIG REQUIRED)
 find_package(lz4 CONFIG REQUIRED)
 find_package(libgit2 CONFIG REQUIRED)
 find_package(mimalloc CONFIG REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 # Include directories
 include_directories(
@@ -135,6 +137,8 @@ target_link_libraries(codebase-memory-mcp-lib PUBLIC
     xxHash::xxhash
     lz4::lz4
     libgit2::libgit2package
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 # Create the main executable target

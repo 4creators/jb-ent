@@ -14,20 +14,20 @@ pub enum RegistryError {
     #[error("Base64 decode error: {0}")]
     Base64Error(#[from] base64::DecodeError),
 
-    #[error("Invalid key format or length")]
-    InvalidKeyFormat,
+    #[error("Invalid key format or length: {0}")]
+    InvalidKeyFormat(String),
 
-    #[error("Invalid signature format or length")]
-    InvalidSignatureFormat,
+    #[error("Invalid signature format or length: {0}")]
+    InvalidSignatureFormat(String),
 
     #[error("Cryptographic key not found in storage")]
     KeyNotFound,
 
     #[error("Signature verification failed: payload may have been tampered with")]
     SignatureVerificationFailed,
-    
-    #[error("Cryptographic error occurred")]
-    CryptoError,
+
+    #[error("Cryptographic error occurred: {0}")]
+    CryptoError(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
 
 pub type Result<T> = std::result::Result<T, RegistryError>;

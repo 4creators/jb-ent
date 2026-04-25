@@ -1,12 +1,25 @@
 {
   "name": "codebase-memory-mcp",
   "version-string": "0.5.0",
-  "builtin-baseline": "5e6578b62d9e4ac5a563e816802a56818540cd2e",
+  "builtin-baseline": "bed72adb5fd8105494abe6e61867f47531bbac0f",
   "dependencies": [
     "sqlite3",
     "xxhash",
     "lz4",
     "libgit2",
-    "mimalloc"
+    "mimalloc",
+    {
+      "name": "openssl",
+      "features": [
+        "fips",
+        "tools"
+      ]
+    }
+  ],
+  "overrides": [
+    {
+      "name": "openssl",
+      "version": "4.0.0"
+    }
   ]
 }

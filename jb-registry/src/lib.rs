@@ -4,6 +4,8 @@
 //! `jb-registry` provides global project discovery, multi-environment synchronization,
 //! and cryptographic signing for payload integrity across OS boundaries.
 
-pub mod schema;
 pub mod crypto;
 pub mod error;
+pub mod ffi_openssl;
+pub mod schema;
+pub mod storage;

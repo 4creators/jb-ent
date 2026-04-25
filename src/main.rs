@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright © 2026 Jacek Błaszczyński
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 use jb_ent::cli;
 
 fn main() -> anyhow::Result<()> {
@@ -26,7 +26,6 @@ fn main() -> anyhow::Result<()> {
         }
         None => {
             // Default behavior: print help
-            use clap::CommandFactory;
             let mut cmd = cli::Cli::command();
             cmd.print_help()?;
         }

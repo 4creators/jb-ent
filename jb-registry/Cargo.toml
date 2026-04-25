@@ -16,9 +16,12 @@ anyhow = "1.0"
 base64 = "0.22.1"
 rand_core = "0.10.1"
 thiserror = "2.0.18"
-windows-sys = { version = "0.61.2", features = ["Win32_Security_Credentials", "Win32_Foundation", "Win32_Security_Cryptography", "Win32_System_Memory"] }
 pkcs8 = { version = "0.10.2", features = ["pem"] }
-ml-dsa = "0.1.0-rc.8"
+openssl = { version = "0.10.76", features = ["v110"] }
+openssl-sys = "0.9.114"
+foreign-types-shared = "0.1.1"
+zeroize = "1.8.2"
+pem-rfc7468 = { version = "1.0.0", features = ["alloc"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

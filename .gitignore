@@ -25,3 +25,4 @@
 # Project specific
 .cbm/
 !src-c/.gitignore
+.cargo/config.toml

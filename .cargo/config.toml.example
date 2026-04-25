@@ -1,0 +1,8 @@
+[env]
+# Point to your local custom vcpkg fork containing OpenSSL 4.0.0
+# Copy this file to .cargo/config.toml and uncomment the line below:
+# VCPKG_ROOT = { value = "C:\\path\\to\\your\\vcpkgroot", force = true }
+
+[target.'cfg(windows)'.env]
+# Tell the vcpkg rust crate to link dynamically on Windows
+VCPKGRS_DYNAMIC = { value = "1", force = true }

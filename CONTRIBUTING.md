@@ -13,7 +13,23 @@ This project employs a hybrid architecture:
 **Prerequisites**:
 - Rust toolchain (Cargo)
 - **Windows:** Visual Studio 2022 or Visual Studio 18 2026 with C++ workloads. Both generators are supported.
-- **Windows:** Visual Studio inbox vcpkg (for resolving external C dependencies).
+- **Windows:** Visual Studio inbox vcpkg (for resolving external C dependencies) OR a local checkout of our custom `vcpkg` fork containing the OpenSSL 4.0.0 port.
+
+### OpenSSL 4.0 and Vcpkg Environment
+
+This project relies on a custom fork of `vcpkg` to provide OpenSSL 4.0.0 for the Rust cryptography abstraction layer. To successfully compile the `openssl-sys` dependency on Windows, you must configure Cargo to use this specific vcpkg root. 
+
+Copy the provided `.cargo/config.toml.example` file to `.cargo/config.toml` and edit the `VCPKG_ROOT` variable to point to your local vcpkg fork:
+
+```toml
+[env]
+# Point to your local custom vcpkg fork containing OpenSSL 4.0.0
+VCPKG_ROOT = { value = "C:\\path\\to\\your\\vcpkgroot", force = true }
+
+[target.'cfg(windows)'.env]
+# Tell the vcpkg rust crate to link dynamically on Windows
+VCPKGRS_DYNAMIC = { value = "1", force = true }
+```
 
 ### Windows Build Quirks & Dependencies
 
