@@ -2,7 +2,12 @@
 #include "graph_buffer/graph_buffer.h"
 #include "store/store.h"
 #include "foundation/allocator.h"
+#include "foundation/compat.h"
 #include "foundation/compat_fs.h"
+#include "foundation/mem.h"
+#if MI_OVERRIDE
+#include <mimalloc.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 

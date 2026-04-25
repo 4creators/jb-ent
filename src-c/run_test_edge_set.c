@@ -1,5 +1,6 @@
 #include "tests/test_edge_set.c"
 #include "tests/test_framework.h"
+#include "foundation/mem.h"
 #if MI_OVERRIDE
 #include <mimalloc.h>
 #endif
@@ -13,6 +14,7 @@ int main(void) {
 #if MI_OVERRIDE
     mi_version();
 #endif
+    cbm_mem_init(0, 0.5);
     RUN_SUITE(edge_set);
     TEST_SUMMARY();
 }

@@ -2386,6 +2386,5 @@ SUITE(extraction) {
     RUN_TEST(extraction_lean_grammar_giant);
 
     cbm_shutdown();
-    cbm_mem_print_audit();
 }
 

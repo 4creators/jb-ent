@@ -1,5 +1,9 @@
 #include "tests/test_framework.h"
 #include "foundation/allocator.h"
+#include "foundation/mem.h"
+#if MI_OVERRIDE
+#include <mimalloc.h>
+#endif
 #include <stdlib.h>
 
 int tf_pass_count = 0;

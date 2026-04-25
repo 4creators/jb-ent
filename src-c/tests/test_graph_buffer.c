@@ -7,6 +7,7 @@
 #include "test_framework.h"
 #include "graph_buffer/graph_buffer.h"
 #include "store/store.h"
+#include "foundation/compat.h"
 #include "foundation/compat_fs.h"
 
 /* ── Node operations ───────────────────────────────────────────── */

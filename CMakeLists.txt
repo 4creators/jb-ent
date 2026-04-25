@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
 project(CodebaseMemoryMCP C CXX)
 
+enable_testing()
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 14)
 
@@ -36,6 +38,11 @@ add_definitions(
 
 if(MSVC)
     add_compile_options(/utf-8 /W3 /wd4005 /wd4996 /wd4018 /wd4244 /wd4267 /wd4146 /wd4090 /experimental:c11atomics)
+    add_compile_options("$<$<CONFIG:Release>:/WX>")
+    add_compile_options("$<$<CONFIG:RelWithDebInfo>:/WX>")
+else()
+    add_compile_options("$<$<CONFIG:Release>:-Werror>")
+    add_compile_options("$<$<CONFIG:RelWithDebInfo>:-Werror>")
 endif()
 
 # Find vcpkg dependencies
