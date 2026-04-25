@@ -4,9 +4,35 @@ Contributions are welcome. This guide covers setup, testing, and PR guidelines f
 
 ## Project Structure
 
-This project employs a hybrid architecture:
-- **Rust Orchestration Layer** (`src/`): Manages CLI (`clap`), configuration (`serde`), identity, and the MCP protocol (`rmcp`).
-- **Legacy C11 Core** (`src-c/`): High-performance tree-sitter AST extraction, graph buffer, and SQLite storage. Linked via FFI.
+This project employs a hybrid architecture combining a modern Rust application layer with a high-performance C11 parsing engine. The repository is structured as a unified Cargo Workspace:
+
+### Rust Application Layer (`src/`)
+The primary Rust codebase acts as the entry point, CLI router, and high-level protocol server.
+- `src/main.rs` & `src/lib.rs`: The core `jb-ent` executable and library.
+- `src/cli/`: Command-line interface definitions (powered by `clap`).
+- `src/mcp/`: Model Context Protocol server implementation.
+- `src/bridge/`: FFI bindings to the underlying C11 engine.
+- `src/config/`: Workspace and system configuration management.
+
+#### Internal Crates
+To enforce strict architectural boundaries, distinct domains are isolated into independent Cargo crates, physically housed within the central `src/` directory:
+- `src/identity/`: (`jb-identity`) Deterministic project identity resolution and branch tracking.
+- `src/registry/`: (`jb-registry`) Global project registry, cross-platform OpenSSL cryptography (ML-DSA), and environment synchronization.
+
+### Legacy C11 Core (`src-c/`)
+The high-performance graph engine, built in C11. Linked to the Rust layer via FFI.
+- Handles tree-sitter AST extraction, graph buffer management, and SQLite storage.
+- Contains its own isolated CMake build system and vendored dependencies.
+- Includes its own comprehensive C-based test suite (`src-c/tests/`).
+
+### Testing (`tests/`)
+All integration and regression tests for the Rust workspace.
+- `tests/identity/`: Integration tests for the `jb-identity` crate.
+- `tests/registry/`: Integration tests for the `jb-registry` crate (including deterministic cryptographic regression tests).
+
+### Documentation (`docs/`)
+- `docs/specs/`: Formal design specifications, architectural records, and coding guidelines (`coding-guidelines.md`).
+- `docs/plans/`: Historical execution plans and checklists.
 
 ## Build from Source
 
@@ -43,22 +69,28 @@ cargo build
 To manually configure and build the C core and its test suite using CMake, you must specify the correct generator (`-G`) and the path to your inbox vcpkg toolchain file. You can also optionally specify the architecture (`-A`).
 
 **CMake Options Explained:**
-- `-G`: Specifies the generator (e.g., `"Visual Studio 18 2026"` or `"Visual Studio 17 2022"`). Required.
-- `-A`: Specifies the target architecture (e.g., `x64`, `ARM64`). Optional. If omitted, it defaults to the host architecture (typically `x64` on modern Windows).
+- `-G`: Specifies the generator (e.g., `"Visual Studio 18 2026"`, `"Visual Studio 17 2022"`, or `"Ninja"`). Required.
+- `-A`: Specifies the target architecture (e.g., `x64`, `ARM64`). Optional. If omitted, it defaults to the host architecture (typically `x64` on modern Windows). Note: Ignored if using the Ninja generator.
 - `-DCMAKE_TOOLCHAIN_FILE`: Points to the `vcpkg.cmake` script. Required for vcpkg dependency resolution.
 
 **For VS 2026:**
 ```powershell
-cmake -B build -S . -G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE="C:\Program Files\Microsoft Visual Studio\18\Preview\VC\vcpkg\scripts\buildsystems\vcpkg.cmake"
+cmake -B build -S . -G "Visual Studio 18 2026" -A x64 -DCMAKE_TOOLCHAIN_FILE="C:\Program Files\Microsoft Visual Studio\18\{Edition}\VC\vcpkg\scripts\buildsystems\vcpkg.cmake"
 cmake --build build --config Debug
 ```
 
 **For VS 2022:**
 ```powershell
-cmake -B build -S . -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\vcpkg\scripts\buildsystems\vcpkg.cmake"
+cmake -B build -S . -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="C:\Program Files\Microsoft Visual Studio\2022\{Edition}\VC\vcpkg\scripts\buildsystems\vcpkg.cmake"
 cmake --build build --config Debug
 ```
-*(Adjust the toolchain path depending on your VS installation edition: Enterprise, Professional, Community, or Preview).*
+
+**For Ninja (Must run in "x64 Native Tools Command Prompt for VS"):**
+```powershell
+cmake -B build-ninja -S . -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE="C:\Program Files\Microsoft Visual Studio\2022\{Edition}\VC\vcpkg\scripts\buildsystems\vcpkg.cmake"
+cmake --build build-ninja
+```
+*(Replace `{Edition}` with your installed Visual Studio edition: Enterprise, Professional, Community, or Preview, or provide the path to your custom vcpkg fork).*
 
 ## Strict Quality Gates and TDD
 

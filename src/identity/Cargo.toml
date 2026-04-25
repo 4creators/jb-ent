@@ -6,6 +6,9 @@ authors = ["Jacek Błaszczyński <jacek.blaszczynski@outlook.com>"]
 license = "AGPL-3.0-only"
 description = "A deterministic project identity resolution library"
 
+[lib]
+path = "lib.rs"
+
 [dependencies]
 git2 = "0.20"
 serde = { version = "1.0", features = ["derive"] }
@@ -15,3 +18,23 @@ anyhow = "1.0"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+[[test]]
+name = "error_tests"
+path = "../../tests/identity/error_tests.rs"
+
+[[test]]
+name = "git_tests"
+path = "../../tests/identity/git_tests.rs"
+
+[[test]]
+name = "local_tests"
+path = "../../tests/identity/local_tests.rs"
+
+[[test]]
+name = "lock_tests"
+path = "../../tests/identity/lock_tests.rs"
+
+[[test]]
+name = "resolve_tests"
+path = "../../tests/identity/resolve_tests.rs"

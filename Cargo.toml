@@ -1,8 +1,8 @@
 [workspace]
 members = [
     ".",
-    "jb-identity",
-    "jb-registry"
+    "src/identity",
+    "src/registry"
 ]
 
 [package]
@@ -30,5 +30,5 @@ rmcp = { version = "1.5.0", features = ["server"] }
 [dev-dependencies]
 tempfile = "3.27.0"
 flate2 = "1.0.35"
-jb-identity = { path = "jb-identity" }
-jb-registry = { path = "jb-registry" }
+jb-identity = { path = "src/identity" }
+jb-registry = { path = "src/registry" }

@@ -6,8 +6,11 @@ authors = ["Jacek Błaszczyński <jacek.blaszczynski@outlook.com>"]
 license = "AGPL-3.0-only"
 description = "Global project registry and multi-environment synchronization"
 
+[lib]
+path = "lib.rs"
+
 [dependencies]
-jb-identity = { path = "../jb-identity" }
+jb-identity = { path = "../identity" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
@@ -26,3 +29,19 @@ pem-rfc7468 = { version = "1.0.0", features = ["alloc"] }
 [dev-dependencies]
 tempfile = "3.27.0"
 flate2 = "1.0.35"
+
+[[test]]
+name = "crypto_tests"
+path = "../../tests/registry/crypto_tests.rs"
+
+[[test]]
+name = "ffi_openssl_tests"
+path = "../../tests/registry/ffi_openssl_tests.rs"
+
+[[test]]
+name = "pem_tests"
+path = "../../tests/registry/pem_tests.rs"
+
+[[test]]
+name = "storage_tests"
+path = "../../tests/registry/storage_tests.rs"
