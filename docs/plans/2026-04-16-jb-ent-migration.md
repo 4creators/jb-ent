@@ -4,7 +4,7 @@
 
 **Goal:** Transition the codebase to a Rust-led architecture named **jb-ent** with a stable identity and standardized configuration, resulting in a single "v2.0" commit on the master branch.
 
-**Architecture:** Rust-first orchestration layer with a legacy C11 structural analysis core linked via FFI.
+**Architecture:** Rust-first application layer with a legacy C11 structural analysis core linked via FFI.
 
 **Tech Stack:** Rust (Cargo), C11, libgit2, serde_json, SPDX-headers.
 
@@ -51,7 +51,7 @@
 
 ### Phase 3: Rust Project Scaffolding (No intermediate commits)
 
-**Goal:** Initialize the new orchestration layer.
+**Goal:** Initialize the new application layer.
 
 - [x] **Step 1: Initialize Cargo.toml**
   Action: Created `Cargo.toml` (v0.1.0, Edition 2024).
@@ -81,7 +81,7 @@
   Run: `git add .`
 
 - [ ] **Step 2: Create the first master commit**
-  Run: `git commit -m "feat: initialize jb-ent master branch with Rust orchestration, unified identity, and AGPLv3 standards"`
+  Run: `git commit -m "feat: initialize jb-ent master branch with Rust application layer, unified identity, and AGPLv3 standards"`
 
 - [ ] **Step 3: Verification**
   Run: `cargo build` and verify the directory structure is exactly as designed.

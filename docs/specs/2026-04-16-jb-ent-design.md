@@ -7,7 +7,7 @@
 **License:** AGPL-3.0-only
 
 ## 1. Goal
-Transition the "codebase-memory-mcp" project into a Rust-led, universally identifiable intelligence engine named **jb-ent**. This transition resolves the "Identity Crisis" between Windows/WSL environments, modernizes the configuration system, and establishes a memory-safe foundation for future orchestration.
+Transition the "codebase-memory-mcp" project into a Rust-led, universally identifiable intelligence engine named **jb-ent**. This transition resolves the "Identity Crisis" between Windows/WSL environments, modernizes the configuration system, and establishes a memory-safe foundation for future application layer code.
 
 ## 2. Core Identity Strategy: "Universal Path Resolution"
 To ensure a stable Project ID across OS boundaries:
@@ -33,7 +33,7 @@ jb-ent/
 ├── .cbm/                 # Local project data (side-by-side with .git)
 │   ├── project.json      # Project UUID and Identity
 │   └── branch/           # <branch-name>.db stores
-├── src/                  # Rust Orchestration (AGPL-3.0-only)
+├── src/                  # Rust Application Layer (AGPL-3.0-only)
 │   ├── main.rs           # Entry point
 │   ├── config/           # 3-level JSON settings
 │   ├── identity/         # First-commit / UUID resolver
@@ -79,5 +79,6 @@ The migration was performed in two distinct phases to maintain a clean history:
 2. **Scaffolding:** Initialized the Rust project (`Cargo.toml`, `build.rs`, `src/`).
 3. **Standards:** Applied `.editorconfig`, `.gitconfig`, and the new AGPL-3.0 `LICENSE`.
 4. **Documentation:** Created the new project `README.md` and definitive design/migration documents in `docs/`.
-5. **Headers:** Applied SPDX compliant AGPL headers to the new Rust orchestration layer.
+5. **Headers:** Applied SPDX compliant AGPL headers to the new Rust application layer.
 6. **Finalization:** Performed a single comprehensive "v0.1.0" commit on the `master` branch.
+

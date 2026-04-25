@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement a robust, type-safe, and canonical Rust CLI using the `clap` crate (Derive API) as the single entry point for the `jb-ent` orchestration layer.
+**Goal:** Implement a robust, type-safe, and canonical Rust CLI using the `clap` crate (Derive API) as the single entry point for the `jb-ent` application layer.
 
 **Architecture:** The CLI is divided into clear subcommands (`serve`, `project`, `config`, `call`) using `clap`'s Derive API. It acts as a router, either executing locally or passing commands to a running server.
 

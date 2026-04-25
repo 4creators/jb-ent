@@ -18,7 +18,7 @@
 - [x] `docs/plans/2026-04-16-jb-ent-migration.md` (Actual workflow)
 - [x] `docs/plans/jb-ent-completeness-checklist.md` (Current status)
 
-## Rust Orchestration (`src/`)
+## Rust Application Layer (`src/`)
 - [x] `src/main.rs` (Entry point with AGPL headers)
 - [x] `src/bridge/mod.rs` (FFI bindings with AGPL headers)
 - [x] `src/cli/mod.rs` (CLI handlers with AGPL headers)

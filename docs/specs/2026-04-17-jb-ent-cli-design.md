@@ -7,7 +7,7 @@
 **License:** AGPL-3.0-only
 
 ## 1. Goal
-Replace the legacy C-based CLI parsing in `src-c/main.c` with a robust, type-safe, and canonical Rust CLI using the `clap` crate (Derive API). This new CLI will act as the single entry point for the `jb-ent` orchestration layer, managing server lifecycle, direct tool execution, configuration, and universal project identity.
+Replace the legacy C-based CLI parsing in `src-c/main.c` with a robust, type-safe, and canonical Rust CLI using the `clap` crate (Derive API). This new CLI will act as the single entry point for the `jb-ent` application layer, managing server lifecycle, direct tool execution, configuration, and universal project identity.
 
 ## 2. Core Principles
 *   **Explicit Actions:** The application will no longer default to starting the MCP server if no arguments are provided. It will strictly print help text and exit.
