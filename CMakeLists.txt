@@ -133,17 +133,10 @@ set(LIB_SOURCES
 
 # source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src-c FILES src-c/main.c ${LIB_SOURCES})
 
-add_library(codebase-memory-mcp-lib OBJECT ${LIB_SOURCES})
+# --- Shared Dependencies & Compiler Flags ---
+add_library(codebase-memory-mcp-deps INTERFACE)
 
-# IMPORTANT: mimalloc MUST be the very first library linked so it initializes before ucrtbased.dll
-if(NOT CBM_ENABLE_ASAN)
-    set(MIMALLOC_LIB mimalloc)
-    target_link_libraries(codebase-memory-mcp-lib PUBLIC ${MIMALLOC_LIB})
-else()
-    set(MIMALLOC_LIB "")
-endif()
-
-target_link_libraries(codebase-memory-mcp-lib PUBLIC
+target_link_libraries(codebase-memory-mcp-deps INTERFACE
     unofficial::sqlite3::sqlite3
     xxHash::xxhash
     lz4::lz4
@@ -152,19 +145,39 @@ target_link_libraries(codebase-memory-mcp-lib PUBLIC
     OpenSSL::Crypto
 )
 
-# Create the main executable target
-add_executable(codebase-memory-mcp src-c/main.c)
-target_link_libraries(codebase-memory-mcp PRIVATE codebase-memory-mcp-lib)
-
 # Increase Stack Size on MSVC to 8MB to prevent silent stack overflow
 if(MSVC)
-    set_target_properties(codebase-memory-mcp PROPERTIES LINK_FLAGS "/STACK:8388608")
+    target_link_options(codebase-memory-mcp-deps INTERFACE "/STACK:8388608")
 endif()
 
 # Link Windows system libraries
 if(WIN32)
-    target_link_libraries(codebase-memory-mcp PRIVATE ws2_32 psapi bcrypt crypt32 winhttp rpcrt4)
+    target_link_libraries(codebase-memory-mcp-deps INTERFACE ws2_32 psapi bcrypt crypt32 winhttp rpcrt4)
 endif()
+
+# --- Approach A: Static Library and Linked Executables ---
+add_library(codebase-memory-mcp-lib OBJECT ${LIB_SOURCES})
+
+# IMPORTANT: mimalloc MUST be the very first library linked so it initializes before ucrtbased.dll
+if(NOT CBM_ENABLE_ASAN)
+    set(MIMALLOC_LIB mimalloc)
+else()
+    set(MIMALLOC_LIB "")
+endif()
+
+# Guarantee mimalloc is first on the link line!
+target_link_libraries(codebase-memory-mcp-lib PUBLIC ${MIMALLOC_LIB})
+target_link_libraries(codebase-memory-mcp-lib PUBLIC codebase-memory-mcp-deps)
+
+# Create the main executable target
+add_executable(codebase-memory-mcp src-c/main.c)
+target_link_libraries(codebase-memory-mcp PRIVATE codebase-memory-mcp-lib)
+
+# --- Approach B: Standalone Unified Executable (for Profiling) ---
+add_executable(codebase-memory-mcp-exe src-c/main.c ${LIB_SOURCES})
+# Guarantee mimalloc is first on the link line!
+target_link_libraries(codebase-memory-mcp-exe PRIVATE ${MIMALLOC_LIB})
+target_link_libraries(codebase-memory-mcp-exe PRIVATE codebase-memory-mcp-deps)
 
 add_subdirectory(src-c/tests)
 
