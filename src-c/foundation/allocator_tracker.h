@@ -5,6 +5,8 @@
 
 #include <stddef.h>
 
+#ifdef CBM_HARDEN_MEMORY
+
 extern "C" void cbm_mem_print_audit(void);
 extern "C" void cbm_set_tracker_memory(void* mem, size_t capacity);
 
@@ -26,6 +28,8 @@ struct CbmMemTrackerReporter {
 };
 
 static CbmMemTrackerReporter g_tracker_reporter;
+
+#endif /* CBM_HARDEN_MEMORY */
 
 #endif /* __cplusplus */
 

@@ -12,6 +12,10 @@
 
 #ifdef CBM_HARDEN_MEMORY
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern void* cbm_malloc_safe(size_t size, const char *file, int line);
 extern void* cbm_calloc_safe(size_t count, size_t size, const char *file, int line);
 extern void* cbm_realloc_safe(void* ptr, size_t size, const char *file, int line);
@@ -19,15 +23,19 @@ extern void  cbm_free_safe(void* ptr, const char *file, int line);
 extern char* cbm_strdup_safe(const char* s, const char *file, int line);
 extern char* cbm_strndup_safe(const char* s, size_t n, const char *file, int line);
 
+/* Expose the audit counter for CbmMemTrackerReporter to print at static destruction */
+extern void cbm_mem_print_audit(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 #define CBM_MALLOC(size)      cbm_malloc_safe((size), __FILE__, __LINE__)
 #define CBM_CALLOC(c, s)      cbm_calloc_safe((c), (s), __FILE__, __LINE__)
 #define CBM_REALLOC(p, s)     cbm_realloc_safe((p), (s), __FILE__, __LINE__)
 #define CBM_FREE(p)           cbm_free_safe((p), __FILE__, __LINE__)
 #define CBM_STRDUP(s)         cbm_strdup_safe((s), __FILE__, __LINE__)
 #define CBM_STRNDUP(s, n)     cbm_strndup_safe((s), (n), __FILE__, __LINE__)
-
-/* Expose the audit counter for main() to print at exit */
-extern void cbm_mem_print_audit(void);
 
 #else /* Normal allocation (No Harden Memory) */
 

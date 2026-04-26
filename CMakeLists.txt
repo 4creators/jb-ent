@@ -7,6 +7,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 14)
 
 option(CBM_ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(CBM_HARDEN_MEMORY "Enable memory hardening" ON)
 
 if(CBM_ENABLE_ASAN)
     set(MI_OVERRIDE_VAL 0)
@@ -19,6 +20,9 @@ if(CBM_ENABLE_ASAN)
     endif()
 else()
     set(MI_OVERRIDE_VAL 1)
+endif()
+
+if(CBM_HARDEN_MEMORY)
     add_definitions(-DCBM_HARDEN_MEMORY)
 endif()
 # Global compiler definitions

@@ -13,9 +13,7 @@
 #include <cstring>
 #include <cstdlib>
 
-extern "C" {
 #include "foundation/allocator.h"
-}
 
 extern "C" {
 char* cbm_preprocess(
