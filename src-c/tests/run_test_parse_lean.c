@@ -17,7 +17,7 @@ static int extract_file_path(const char *path, uint64_t budget) {
     FILE *f = fopen(path, "rb");
     if (!f) {
         printf("File not found: %s\n", path);
-        return 1; // Ignore if file not found locally
+        return 0; // Fail if file not found in test
     }
     
     fseek(f, 0, SEEK_END);
@@ -61,16 +61,32 @@ int main(int argc, char **argv) {
     cbm_slab_install();
     cbm_init();
 
-    if (argc > 1) {
-        if (!extract_file_path(argv[1], 600000000ULL)) {
-            printf("FAIL: %s\n", argv[1]);
+    const char *target_path = "../../../src-c/internal/cbm/vendored/grammars/lean/parser.c";
+    FILE *test_f = fopen(target_path, "r");
+    if (!test_f) {
+        target_path = "../../src-c/internal/cbm/vendored/grammars/lean/parser.c";
+        test_f = fopen(target_path, "r");
+        if (!test_f) {
+            target_path = "src-c/internal/cbm/vendored/grammars/lean/parser.c";
         } else {
-            printf("PASS: %s\n", argv[1]);
+            fclose(test_f);
         }
     } else {
-        printf("Usage: %s <path>\n", argv[0]);
+        fclose(test_f);
+    }
+
+    if (argc > 1) {
+        target_path = argv[1];
+    }
+
+    int ret = 0;
+    if (!extract_file_path(target_path, 600000000ULL)) {
+        printf("FAIL: %s\n", target_path);
+        ret = 1;
+    } else {
+        printf("PASS: %s\n", target_path);
     }
 
     cbm_shutdown();
-    return 0;
+    return ret;
 }

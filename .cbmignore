@@ -1,0 +1,2 @@
+# Ignore generated tree-sitter grammars which are massive and have no architectural value for graph querying
+src-c/internal/cbm/vendored/grammars/

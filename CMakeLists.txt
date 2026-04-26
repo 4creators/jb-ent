@@ -179,6 +179,16 @@ add_executable(codebase-memory-mcp-exe src-c/main.c ${LIB_SOURCES})
 target_link_libraries(codebase-memory-mcp-exe PRIVATE ${MIMALLOC_LIB})
 target_link_libraries(codebase-memory-mcp-exe PRIVATE codebase-memory-mcp-deps)
 
+# Visual Studio Profiler explicitly requires these overrides in RelWithDebInfo
+if(MSVC)
+    target_link_options(codebase-memory-mcp-exe PRIVATE
+        "$<$<CONFIG:RelWithDebInfo>:/PROFILE>"
+        "$<$<CONFIG:RelWithDebInfo>:/INCREMENTAL:NO>"
+        "$<$<CONFIG:RelWithDebInfo>:/OPT:NOICF>"
+        "$<$<CONFIG:RelWithDebInfo>:/DEBUG:FULL>"
+    )
+endif()
+
 add_subdirectory(src-c/tests)
 
 

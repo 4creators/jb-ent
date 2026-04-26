@@ -19,8 +19,13 @@
 /* ── Shared pipeline constants ─────────────────────────────────── */
 
 /* Maximum byte budget for tree-sitter extraction per file */
-#define CBM_EXTRACT_BUDGET 5000000ULL        // 5s standard
-#define CBM_EXTRACT_BUDGET_LARGE 30000000ULL // 30s for large files
+#ifdef NDEBUG
+#define CBM_EXTRACT_BUDGET 10000000ULL        // 10s standard optimized
+#define CBM_EXTRACT_BUDGET_LARGE 60000000ULL  // 60s for large files optimized
+#else
+#define CBM_EXTRACT_BUDGET 30000000ULL        // 30s standard unoptimized
+#define CBM_EXTRACT_BUDGET_LARGE 180000000ULL // 180s for large files unoptimized
+#endif
 
 /* Route node QN buffer size (must fit __route__METHOD__/full/url/path) */
 #define CBM_ROUTE_QN_SIZE 768
