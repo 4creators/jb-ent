@@ -477,15 +477,15 @@ OBJS_VENDORED_PROD = $(MIMALLOC_OBJ_PROD) $(SQLITE3_OBJ_PROD) $(TRE_OBJ_PROD) $(
 
 MAIN_SRC = src/main.c
 
-$(BUILD_DIR)/codebase-memory-mcp: $(MAIN_SRC) $(PROD_SRCS) $(EXTRACTION_SRCS) $(AC_LZ4_SRCS) $(SQLITE_WRITER_SRC) $(OBJS_VENDORED_PROD) | $(BUILD_DIR)
+$(BUILD_DIR)/jb-ent-core: $(MAIN_SRC) $(PROD_SRCS) $(EXTRACTION_SRCS) $(AC_LZ4_SRCS) $(SQLITE_WRITER_SRC) $(OBJS_VENDORED_PROD) | $(BUILD_DIR)
 	$(CC) $(CFLAGS_PROD) -o $@ \
 		$(MAIN_SRC) $(PROD_SRCS) \
 		$(EXTRACTION_SRCS) $(AC_LZ4_SRCS) $(SQLITE_WRITER_SRC) \
 		$(OBJS_VENDORED_PROD) \
 		$(LDFLAGS)
 
-cbm: $(BUILD_DIR)/codebase-memory-mcp
-	@echo "Built: $(BUILD_DIR)/codebase-memory-mcp"
+cbm: $(BUILD_DIR)/jb-ent-core
+	@echo "Built: $(BUILD_DIR)/jb-ent-core"
 
 # ── Build with embedded UI (requires Node.js) ───────────────────
 
@@ -503,13 +503,13 @@ embed: frontend
 	scripts/embed-frontend.sh graph-ui/dist $(BUILD_DIR)/embedded
 
 cbm-with-ui: embed $(OBJS_VENDORED_PROD)
-	$(CC) $(CFLAGS_PROD) -o $(BUILD_DIR)/codebase-memory-mcp \
+	$(CC) $(CFLAGS_PROD) -o $(BUILD_DIR)/jb-ent-core \
 		$(MAIN_SRC) $(PROD_SRCS_WITH_ASSETS) \
 		$(EXTRACTION_SRCS) $(AC_LZ4_SRCS) $(SQLITE_WRITER_SRC) \
 		$(OBJS_VENDORED_PROD) \
 		$(wildcard $(BUILD_DIR)/embedded/embed_*.o) \
 		$(LDFLAGS)
-	@echo "Built with UI: $(BUILD_DIR)/codebase-memory-mcp"
+	@echo "Built with UI: $(BUILD_DIR)/jb-ent-core"
 
 clean-c:
 	rm -rf $(BUILD_DIR)
@@ -598,10 +598,10 @@ lint-ci: lint-cppcheck lint-format lint-no-suppress
 security: cbm
 	@echo "=== Running security audit suite ==="
 	scripts/security-audit.sh
-	scripts/security-strings.sh $(BUILD_DIR)/codebase-memory-mcp
+	scripts/security-strings.sh $(BUILD_DIR)/jb-ent-core
 	scripts/security-ui.sh
-	scripts/security-install.sh $(BUILD_DIR)/codebase-memory-mcp
-	scripts/security-network.sh $(BUILD_DIR)/codebase-memory-mcp
-	scripts/security-fuzz.sh $(BUILD_DIR)/codebase-memory-mcp
+	scripts/security-install.sh $(BUILD_DIR)/jb-ent-core
+	scripts/security-network.sh $(BUILD_DIR)/jb-ent-core
+	scripts/security-fuzz.sh $(BUILD_DIR)/jb-ent-core
 	scripts/security-vendored.sh
 	@echo "=== All security checks passed ==="

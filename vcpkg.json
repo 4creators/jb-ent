@@ -1,6 +1,6 @@
 {
-  "name": "codebase-memory-mcp",
-  "version-string": "0.5.0",
+  "name": "jb-ent",
+  "version-string": "0.1.0",
   "builtin-baseline": "bed72adb5fd8105494abe6e61867f47531bbac0f",
   "dependencies": [
     "sqlite3",

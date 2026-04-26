@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.15)
-project(CodebaseMemoryMCP C CXX)
+cmake_minimum_required(VERSION 4.3.2)
+project(jb-ent C CXX)
 
 enable_testing()
 
@@ -134,9 +134,9 @@ set(LIB_SOURCES
 # source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src-c FILES src-c/main.c ${LIB_SOURCES})
 
 # --- Shared Dependencies & Compiler Flags ---
-add_library(codebase-memory-mcp-deps INTERFACE)
+add_library(jb-ent-deps INTERFACE)
 
-target_link_libraries(codebase-memory-mcp-deps INTERFACE
+target_link_libraries(jb-ent-deps INTERFACE
     unofficial::sqlite3::sqlite3
     xxHash::xxhash
     lz4::lz4
@@ -147,16 +147,16 @@ target_link_libraries(codebase-memory-mcp-deps INTERFACE
 
 # Increase Stack Size on MSVC to 8MB to prevent silent stack overflow
 if(MSVC)
-    target_link_options(codebase-memory-mcp-deps INTERFACE "/STACK:8388608")
+    target_link_options(jb-ent-deps INTERFACE "/STACK:8388608")
 endif()
 
 # Link Windows system libraries
 if(WIN32)
-    target_link_libraries(codebase-memory-mcp-deps INTERFACE ws2_32 psapi bcrypt crypt32 winhttp rpcrt4)
+    target_link_libraries(jb-ent-deps INTERFACE ws2_32 psapi bcrypt crypt32 winhttp rpcrt4)
 endif()
 
 # --- Approach A: Static Library and Linked Executables ---
-add_library(codebase-memory-mcp-lib OBJECT ${LIB_SOURCES})
+add_library(jb-ent-lib OBJECT ${LIB_SOURCES})
 
 # IMPORTANT: mimalloc MUST be the very first library linked so it initializes before ucrtbased.dll
 if(NOT CBM_ENABLE_ASAN)
@@ -166,22 +166,22 @@ else()
 endif()
 
 # Guarantee mimalloc is first on the link line!
-target_link_libraries(codebase-memory-mcp-lib PUBLIC ${MIMALLOC_LIB})
-target_link_libraries(codebase-memory-mcp-lib PUBLIC codebase-memory-mcp-deps)
+target_link_libraries(jb-ent-lib PUBLIC ${MIMALLOC_LIB})
+target_link_libraries(jb-ent-lib PUBLIC jb-ent-deps)
 
 # Create the main executable target
-add_executable(codebase-memory-mcp src-c/main.c)
-target_link_libraries(codebase-memory-mcp PRIVATE codebase-memory-mcp-lib)
+add_executable(jb-ent-core src-c/main.c)
+target_link_libraries(jb-ent-core PRIVATE jb-ent-lib)
 
 # --- Approach B: Standalone Unified Executable (for Profiling) ---
-add_executable(codebase-memory-mcp-exe src-c/main.c ${LIB_SOURCES})
+add_executable(jb-ent-profile src-c/main.c ${LIB_SOURCES})
 # Guarantee mimalloc is first on the link line!
-target_link_libraries(codebase-memory-mcp-exe PRIVATE ${MIMALLOC_LIB})
-target_link_libraries(codebase-memory-mcp-exe PRIVATE codebase-memory-mcp-deps)
+target_link_libraries(jb-ent-profile PRIVATE ${MIMALLOC_LIB})
+target_link_libraries(jb-ent-profile PRIVATE jb-ent-deps)
 
 # Visual Studio Profiler explicitly requires these overrides in RelWithDebInfo
 if(MSVC)
-    target_link_options(codebase-memory-mcp-exe PRIVATE
+    target_link_options(jb-ent-profile PRIVATE
         "$<$<CONFIG:RelWithDebInfo>:/PROFILE>"
         "$<$<CONFIG:RelWithDebInfo>:/INCREMENTAL:NO>"
         "$<$<CONFIG:RelWithDebInfo>:/OPT:NOICF>"
